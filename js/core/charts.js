@@ -64,8 +64,10 @@
         if (!data.length || data.every(d => !d.value)) return empty(el, emptyText);
         const max = Math.max(...data.map(d => d.value), 1);
         // Chừa đủ chỗ cho nhãn giá trị dài nhất ở đầu thanh (không để nhãn tràn khỏi thẻ)
-        const reserve = Math.max(8, ...data.map(d => String(d.valueText).length + (d.note ? String(d.note).length + 1 : 0))) + 2;
-        const reserveSmall = Math.max(8, ...data.map(d => String(d.valueText).length)) + 2;
+        // (chữ trung bình hẹp hơn chữ số "0" mà đơn vị ch dùng làm chuẩn → nhân 0,8)
+        const reserveFor = chars => Math.ceil(Math.max(8, chars) * 0.8) + 1;
+        const reserve = reserveFor(Math.max(...data.map(d => String(d.valueText).length + (d.note ? String(d.note).length + 1 : 0))));
+        const reserveSmall = reserveFor(Math.max(...data.map(d => String(d.valueText).length)));
         el.innerHTML = html`
             ${legend ? html`<div class="chart-legend-inline" aria-hidden="true">${legend.map(l => html`<span style="--c:${l.color}">${l.label}</span>`)}</div>` : ''}
             <div class="barlist" role="list" aria-label="${title}" style="--reserve:${reserve}ch;--reserve-sm:${reserveSmall}ch">
