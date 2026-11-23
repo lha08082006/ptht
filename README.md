@@ -3,7 +3,7 @@
 Hệ thống thông tin quản lý toàn diện cho mô hình nhà hàng / quán nhậu ẩm thực (Nghiên cứu trường hợp: **Quán Nhậu Tự Do - 505 Minh Khai, Hai Bà Trưng, Hà Nội**).
 
 Đề tài bao gồm trọn bộ:
-1. **Mã nguồn ứng dụng Web quản lý chạy trực tiếp trên trình duyệt** (HTML5, CSS3, JavaScript Vanilla).
+1. **Mã nguồn ứng dụng Web quản lý chạy trực tiếp trên trình duyệt** (HTML5, CSS3, JavaScript thuần — không cần cài đặt, chạy được cả khi không có mạng).
 2. **Bộ sơ đồ phân tích nghiệp vụ chuẩn:** BFD (Sơ đồ phân rã chức năng) và IFD (Sơ đồ luồng thông tin 7 trang).
 3. **Báo cáo Phân tích Thiết kế Hệ thống Thông tin Quản lý (PTHTTTQL)** chi tiết dạng Word (.docx) và PDF.
 
@@ -11,26 +11,36 @@ Hệ thống thông tin quản lý toàn diện cho mô hình nhà hàng / quán
 
 ## 🌟 Các Phân Hệ Chức Năng Chính
 
-Hệ thống được thiết kế theo luồng quy trình thực tế từ tiếp đón khách hàng, phục vụ tại bàn, điều phối bếp đến hậu cần kho bãi và giao vận:
+Hệ thống được thiết kế theo luồng quy trình thực tế từ tiếp đón khách hàng, phục vụ tại bàn, điều phối bếp đến hậu cần kho bãi và xe đưa đón (menu bên trái của web chia đúng theo các phân hệ này):
 
-### 1. Phân hệ Vận hành & Phục vụ (Front-of-House)
-- **Sơ đồ bàn & Đặt bàn:** Theo dõi trạng thái bàn (Trống, Đang phục vụ, Đã đặt trước), đặt bàn theo thời gian và số lượng khách.
-- **Quản lý Đơn hàng (Order):** Nhân viên phục vụ tạo và cập nhật order theo bàn với danh mục món ăn phong phú (Món nướng, món xào, khai vị, hải sản, bia Tự Do...).
-- **Màn hình điều phối Bếp (Kitchen Bar / KDS):** Tiếp nhận thông tin order tức thời, cập nhật trạng thái chế biến (Đang làm, Hoàn thành).
-- **Thanh toán & Hóa đơn (Invoices):** Tự động tính toán tổng tiền, áp dụng chương trình khuyến mãi / Voucher giảm giá, in hóa đơn thanh toán.
+### 1. Quản lý khách hàng
+- **Thông tin khách hàng:** Thêm, sửa, xóa, tìm kiếm (không cần gõ dấu) theo tên hoặc SĐT.
+- **Nhân viên:** Phân chia vai trò (Quản lý, Thu ngân, Bếp, Phục vụ, Tài xế).
 
-### 2. Phân hệ Hậu cần & Kho bãi (Back-of-House)
-- **Quản lý Thực đơn (Foods):** Cập nhật giá bán, trạng thái còn món/hết món.
-- **Quản lý Nguyên vật liệu (Ingredients):** Theo dõi số lượng tồn, đơn vị tính, định mức tồn an toàn.
-- **Nhà cung cấp (Suppliers):** Quản lý đối tác cung ứng thực phẩm tươi sống, bia nước ngọt từ các vùng miền.
-- **Nhập kho (Inventory Receipts):** Lập phiếu nhập kho nguyên liệu, tính toán giá trị nhập hàng.
+### 2. Quản lý bán hàng
+- **Đặt bàn:** Tạo đặt bàn theo ngày giờ và số khách, xác nhận (tự gán bàn trống nhỏ nhất đủ chỗ), hủy, mã QR check-in.
+- **Quản lý bàn:** Sơ đồ bàn theo khu (Tầng 1, Tầng 2, Sân vườn) với trạng thái Trống / Đã đặt / Đang dùng.
+- **Món ăn / Thực đơn:** Cập nhật giá bán, danh mục, trạng thái còn món / hết món.
+- **Gọi món:** Chọn bàn, khách, nhân viên phục vụ, voucher; thêm món vào đơn và gửi xuống bếp, đồng thời tạo hóa đơn.
+- **Hóa đơn & thanh toán:** Tự động tính tiền, áp dụng voucher, xem chi tiết hóa đơn, thanh toán bằng Tiền mặt / Chuyển khoản / VNPay / MoMo (lưu mã giao dịch).
+- **Voucher:** Quản lý mã giảm giá theo % và số lượt còn lại.
 
-### 3. Phân hệ Nhân sự & Giao vận
-- **Quản lý Nhân sự (Employees):** Phân chia vai trò rõ ràng (Quản lý, Thu ngân, Bếp, Phục vụ, Tài xế).
-- **Đội xe & Giao hàng (Delivery):** Quản lý phương tiện giao vận và đơn hàng mang đi / giao tận nơi.
+### 3. Quản lý nhà bếp
+- **Công việc bếp (Kanban):** Đơn mới → Đang chế biến → Hoàn thành.
 
-### 4. Báo cáo & Thống kê Quản trị
-- **Báo cáo Doanh thu:** Thống kê doanh thu theo mốc thời gian, món ăn bán chạy nhất, phân tích cơ cấu doanh số.
+### 4. Quản lý kho hàng
+- **Nguyên liệu:** Đơn vị tính, đơn giá, nhà cung cấp, tồn kho và cảnh báo sắp hết (≤ 5).
+- **Nhà cung cấp:** Đối tác cung ứng thực phẩm tươi sống, bia, nước ngọt.
+- **Nhập / xuất kho:** Lập phiếu nhập hoặc xuất; tồn kho chỉ thay đổi qua phiếu (tồn = tổng nhập − tổng xuất).
+
+### 5. Xe đưa đón khách
+- **Quản lý xe:** Biển số, loại xe, số chỗ, trạng thái.
+- **Yêu cầu đưa đón:** Tạo yêu cầu, giao xe (xe sẵn sàng nhỏ nhất đủ chỗ + tài xế đang rảnh), theo dõi chuyến xe.
+
+### 6. Báo cáo - Thống kê
+- **Báo cáo tài chính:** Doanh thu theo khoảng ngày, tỷ lệ thanh toán, phương thức thanh toán, nguyên liệu tiêu thụ (theo phiếu xuất kho), chi tiết hóa đơn.
+- **Báo cáo món bán chạy:** Xếp hạng theo số phần, doanh thu theo danh mục và theo món.
+- **Báo cáo hàng hóa & tồn kho:** Giá trị tồn kho, lịch sử nhập / xuất, chi tiết tồn từng nguyên liệu.
 
 ---
 
@@ -38,22 +48,42 @@ Hệ thống được thiết kế theo luồng quy trình thực tế từ ti�
 
 ```text
 ptht/
-├── index.html                 # Giao diện chính hệ thống quản lý Quán Nhậu Tự Do
-├── style.css                  # Toàn bộ CSS phong cách thương hiệu quán nhậu (Be Vietnam Pro, tone vàng/xanh đậm)
-├── app.js                     # Toàn bộ logic tương tác, dữ liệu mẫu và điều khiển giao diện
-├── admin_avatar.png           # Avatar tài khoản quản trị
-├── background.jpg             # Ảnh nền nhà hàng
-├── docs/                      # Tài liệu học phần & báo cáo PTHTTTQL
+├── index.html                  # Giao diện chính (18 trang + các hộp thoại)
+├── css/
+│   ├── tokens.css              # Màu thương hiệu (xanh đậm / vàng), cỡ chữ, khoảng cách, bo góc
+│   ├── base.css                # Reset, chữ, tiện ích dùng chung
+│   ├── layout.css              # Trang đăng nhập, sidebar, thanh trên cùng, bố cục trang
+│   ├── components.css          # Nút, bảng, form, hộp thoại, thông báo, biểu đồ…
+│   └── pages.css               # Phần riêng: sơ đồ bàn, gọi món, bếp, hóa đơn, báo cáo
+├── js/
+│   ├── core/
+│   │   ├── utils.js            # Định dạng tiền / ngày (theo giờ máy), HTML an toàn chống XSS
+│   │   ├── data.js             # Dữ liệu mẫu cố định, neo theo ngày hiện tại
+│   │   ├── store.js            # Kho dữ liệu và quy tắc nghiệp vụ dùng chung
+│   │   ├── ui.js               # Thông báo, hộp thoại, hộp xác nhận, bảng
+│   │   ├── validate.js         # Kiểm tra dữ liệu nhập, báo lỗi ngay dưới ô
+│   │   ├── charts.js           # Biểu đồ cột, thanh ngang, thanh tỷ lệ (không cần thư viện)
+│   │   └── crud.js             # Thêm / sửa / xóa dùng chung cho các danh mục
+│   ├── pages/                  # Mỗi phân hệ một file, đặt tên theo menu
+│   │   ├── tong-quan.js
+│   │   ├── khach-hang.js       # Khách hàng, nhân viên
+│   │   ├── ban-hang.js         # Món ăn, voucher, quản lý bàn, đặt bàn
+│   │   ├── goi-mon.js          # Gọi món, hóa đơn, thanh toán
+│   │   ├── nha-bep.js
+│   │   ├── kho.js              # Nguyên liệu, nhà cung cấp, nhập / xuất kho
+│   │   ├── xe-dua-don.js
+│   │   └── bao-cao.js
+│   └── app.js                  # Đăng nhập, điều hướng, sidebar, khởi động
+├── assets/
+│   ├── fonts/                  # Font Be Vietnam Pro (lưu sẵn, chạy không cần mạng)
+│   ├── vendor/fontawesome/     # Bộ icon Font Awesome Free (bản solid)
+│   └── img/                    # Ảnh nền, ảnh đại diện, favicon (đã nén)
+├── docs/                       # Tài liệu học phần & báo cáo PTHTTTQL
 │   ├── PTHTTTQL_Quán Nhậu Tự Do.docx   # Bản báo cáo nghiên cứu hoàn chỉnh (.docx)
 │   ├── PTHTTTQL_Quán Nhậu Tự Do.pdf    # Bản báo cáo xuất định dạng (.pdf)
-│   └── diagrams/              # Thư mục sơ đồ phân tích nghiệp vụ
+│   └── diagrams/               # Thư mục sơ đồ phân tích nghiệp vụ
 │       ├── BFD_quannhautudo.png        # Sơ đồ phân rã chức năng (BFD)
-│       ├── IFD_Trang_1.png             # Sơ đồ luồng thông tin IFD Trang 1
-│       ├── IFD_Trang_2.png             # Sơ đồ luồng thông tin IFD Trang 2
-│       ├── IFD_Trang_3.png             # Sơ đồ luồng thông tin IFD Trang 3
-│       ├── IFD_Trang_4.png             # Sơ đồ luồng thông tin IFD Trang 4
-│       ├── IFD_Trang_5.png             # Sơ đồ luồng thông tin IFD Trang 5
-│       ├── IFD_Trang_6.png             # Sơ đồ luồng thông tin IFD Trang 6
+│       ├── IFD_Trang_1.png … IFD_Trang_6.png  # Sơ đồ luồng thông tin IFD Trang 1–6
 │       └── PTHTTT_Trang_7.png          # Sơ đồ luồng thông tin IFD Trang 7
 ├── .gitignore
 └── README.md
@@ -63,16 +93,29 @@ ptht/
 
 ## 🚀 Hướng Dẫn Chạy Thử Ứng Dụng
 
-Ứng dụng web được xây dựng độc lập, không yêu cầu cài đặt môi trường phức tạp hay `npm install`:
+Ứng dụng web được xây dựng độc lập, không yêu cầu cài đặt môi trường hay `npm install`, không cần Internet:
 
 1. **Chạy trực tiếp từ máy cá nhân:**
    - Mở file `index.html` bằng bất kỳ trình duyệt web nào (Chrome, Edge, Firefox, Safari).
-   - Đăng nhập hệ thống bằng tài khoản mặc định:
+   - Đăng nhập bằng tài khoản dùng thử (có ghi ngay trên trang đăng nhập):
      - **Tên đăng nhập:** `admin`
-     - **Mật khẩu:** `123456` (hoặc bấm trực tiếp nút Đăng nhập)
+     - **Mật khẩu:** `123456`
+   - Tích **Ghi nhớ đăng nhập** để lần sau trình duyệt tự điền sẵn tên đăng nhập.
 
 2. **Chạy qua GitHub Pages:**
    - Truy cập vào mục **Settings** của repository trên GitHub.
    - Chọn mục **Pages** ở thanh menu bên trái.
    - Tại phần **Branch**, chọn `main` (hoặc `master`) và thư mục `/(root)`, sau đó bấm **Save**.
    - Sau 1-2 phút, web sẽ được xuất bản live tại địa chỉ: `https://lha08082006.github.io/ptht/`.
+
+> **Lưu ý:** Đây là bản demo chạy hoàn toàn trên trình duyệt. Dữ liệu nằm trong bộ nhớ, nên tải lại trang (F5) sẽ quay về dữ liệu mẫu ban đầu và cần đăng nhập lại. Dữ liệu mẫu luôn lấy mốc theo ngày hiện tại (hóa đơn trong 7 ngày gần nhất, đặt bàn ở các ngày tới), nên các báo cáo lúc nào cũng có số liệu.
+
+---
+
+## 🧩 Quy Tắc Nghiệp Vụ Chính Được Kiểm Tra
+
+- SĐT gồm 10–11 chữ số, bắt đầu bằng 0; tên, mã voucher, biển số xe không được trùng.
+- Giá, số lượng là số nguyên dương; xuất kho không vượt quá tồn kho; ngày lập phiếu kho không ở tương lai.
+- Không đặt bàn cho ngày giờ đã qua; số khách không vượt sức chứa của bàn.
+- Trạng thái bàn khớp với dữ liệu: gọi món → *Đang dùng*; xác nhận đặt bàn → *Đã đặt*; thanh toán xong chỉ trả bàn về *Trống* khi bàn không còn hóa đơn chờ.
+- Không xóa được bản ghi đang được dùng (ví dụ: khách hàng đã có hóa đơn, nguyên liệu đã có phiếu kho); hệ thống báo rõ lý do.
