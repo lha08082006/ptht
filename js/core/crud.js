@@ -11,10 +11,12 @@
      tbody      id <tbody> của bảng
      meta       (tùy chọn) id chỗ hiện số bản ghi
      search     (tùy chọn) { input: id ô tìm, fields: r => [các trường để tìm] }
-     fields     [{ id: id ô nhập, key: tên trường, type: text|raw|int|select-int|upper|phone }]
+     fields     [{ id: id ô nhập, key: tên trường, type: text|raw|int|number|select-int|upper|phone }]
+                (trường tự dựng: { id, key, read: () => giá trị, fill: (giá trị, bản ghi) => void })
      columns    [{ className, render(r, i) }] — các cột trước cột "Thao tác"
      display    r => tên hiển thị của bản ghi
      validate   (values, existing) => { idÔNhập: 'lỗi' }
+     normalize  (tùy chọn) values => giá trị sẽ lưu (sau khi hợp lệ)
      prepare    (form, record) => đổ dữ liệu cho select phụ thuộc trước khi mở
      defaults   () => giá trị mặc định khi thêm mới
      makeId     values => id (nếu không dùng id tự tăng, ví dụ mã voucher)
@@ -38,12 +40,14 @@
     }
 
     function readField(field) {
+        if (field.read) return field.read();
         const el = U.byId(field.id);
         if (!el) return '';
         if (el.validity && el.validity.badInput) return NaN;
         const value = el.value;
         switch (field.type) {
-            case 'int': return value.trim() === '' ? '' : Number(value);
+            case 'int':
+            case 'number': return value.trim() === '' ? '' : Number(value);
             case 'select-int': return value === '' ? null : Number(value);
             case 'upper': return value.trim().toUpperCase().replace(/\s+/g, '');
             case 'phone': return value.trim().replace(/[\s.-]/g, '');
@@ -85,12 +89,11 @@
         V.clear(form);
         form.dataset.editId = record ? String(record.id) : '';
         if (c.prepare) c.prepare(form, record);
-        if (record) {
-            c.fields.forEach(f => {
-                const el = U.byId(f.id);
-                if (el) el.value = record[f.key] == null ? '' : record[f.key];
-            });
-        }
+        c.fields.forEach(f => {
+            if (f.fill) return f.fill(record ? record[f.key] : undefined, record);
+            const el = U.byId(f.id);
+            if (record && el) el.value = record[f.key] == null ? '' : record[f.key];
+        });
         (c.lockOnEdit || []).forEach(fieldId => {
             const el = U.byId(fieldId);
             if (el) el.readOnly = !!record;
@@ -105,17 +108,18 @@
         c.fields.forEach(f => { values[f.key] = readField(f); });
 
         if (V.show(form, c.validate(values, existing))) return;
+        const data = c.normalize ? c.normalize(values) : values;
 
         let record;
         if (existing) {
-            Object.assign(existing, values);
+            Object.assign(existing, data);
             record = existing;
             UI.toast(`Đã cập nhật ${c.label} “${c.display(record)}”`, 'success');
         } else {
             record = Object.assign(
                 { id: c.makeId ? c.makeId(values) : S.nextId(c.key) },
                 c.defaults ? c.defaults() : {},
-                values
+                data
             );
             S.db[c.key].push(record);
             UI.toast(`Đã thêm ${c.label} “${c.display(record)}”`, 'success');

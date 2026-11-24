@@ -61,14 +61,38 @@
         return line ? line.qty : 0;
     }
 
-    function menuCard(f) {
+    /** Nguyên liệu đã dành cho các món đang nằm trong giỏ */
+    const cartNeeds = () => S.ingredientNeeds(cart);
+
+    /** Còn thêm được bao nhiêu phần món này (sau khi trừ phần nguyên liệu các món trong giỏ đã dùng) */
+    const canAddMore = (food, reserved = cartNeeds()) => S.portionsLeft(food, reserved);
+
+    /** Câu báo thiếu nguyên liệu khi muốn thêm 1 phần nữa */
+    function shortageText(food, reserved = cartNeeds()) {
+        const missing = S.recipeOf(food).map(l => {
+            const g = S.get('ingredients', l.ingredientId);
+            const free = S.round3((Number(g.stock) || 0) - (reserved.get(Number(g.id)) || 0));
+            return free + 1e-9 < l.qty ? `${g.name} còn ${U.fmtNumber(Math.max(free, 0))} ${g.unit} (cần ${U.fmtNumber(l.qty)} ${g.unit}/phần)` : null;
+        }).filter(Boolean);
+        return `Không đủ nguyên liệu cho thêm 1 phần “${food.name}”: ${missing.join('; ')}.`;
+    }
+
+    function menuCard(f, reserved) {
         const qty = qtyInCart(f.id);
+        const more = canAddMore(f, reserved);
+        const soldOut = more === 0 && !qty;
+        const maxed = more === 0 && qty > 0;
+        const stockNote = soldOut ? 'Hết nguyên liệu'
+            : maxed ? 'Đã hết phần làm được'
+                : (Number.isFinite(more) && more <= 5 ? `Còn ${more} phần` : '');
         return html`
-            <button type="button" class="menu-card${qty ? ' is-in-cart' : ''}" data-action="cart-add" data-id="${f.id}"
-                aria-label="Thêm ${f.name}, ${U.fmtMoney(f.price)}${qty ? ', đã chọn ' + qty : ''}">
+            <button type="button" class="menu-card${qty ? ' is-in-cart' : ''}${soldOut ? ' is-sold-out' : ''}${stockNote && !soldOut ? ' is-limited' : ''}" data-action="cart-add" data-id="${f.id}"
+                ${soldOut ? U.raw('aria-disabled="true"') : ''}
+                aria-label="Thêm ${f.name}, ${U.fmtMoney(f.price)}${qty ? ', đã chọn ' + qty : ''}${stockNote ? ', ' + stockNote.toLowerCase() : ''}">
                 <span class="menu-card__name">${f.name}</span>
                 <span class="menu-card__price">${U.fmtMoney(f.price)}</span>
-                <span class="menu-card__badge" aria-hidden="true">${qty ? '×' + qty : html`<i class="fas fa-plus"></i>`}</span>
+                ${stockNote ? html`<span class="menu-card__stock">${stockNote}</span>` : ''}
+                <span class="menu-card__badge" aria-hidden="true">${qty ? '×' + qty : html`<i class="fas ${soldOut ? 'fa-ban' : 'fa-plus'}"></i>`}</span>
             </button>`;
     }
 
@@ -80,14 +104,16 @@
                 const ib = CATEGORY_ORDER.indexOf(b);
                 return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
             });
-        UI.setText('menuMeta', `${foods.length} món đang phục vụ`);
+        const reserved = cartNeeds();
+        const soldOut = foods.filter(f => S.portionsLeft(f) === 0).length;
+        UI.setText('menuMeta', `${foods.length} món đang phục vụ${soldOut ? ` · ${soldOut} món hết nguyên liệu` : ''}`);
         U.byId('menuGrid').innerHTML = categories.length
             ? categories.map(cat => {
                 const list = foods.filter(f => f.category === cat);
                 return html`
                     <section class="menu-section" aria-label="${cat}">
                         <h3 class="menu-section__title">${cat} <span class="menu-section__count">· ${list.length}</span></h3>
-                        <div class="menu-grid">${list.map(menuCard)}</div>
+                        <div class="menu-grid">${list.map(f => menuCard(f, reserved))}</div>
                     </section>`;
             }).join('')
             : UI.emptyState('Chưa có món nào đang phục vụ', 'fa-utensils');
@@ -168,6 +194,11 @@
     function changeQty(foodId, delta) {
         const line = cart.find(c => c.foodId === foodId);
         if (!line) return;
+        const food = S.get('foods', foodId);
+        if (delta > 0 && food && canAddMore(food) < delta) {
+            UI.toast(shortageText(food), 'warning');
+            return;
+        }
         line.qty += delta;
         if (line.qty <= 0) cart = cart.filter(c => c !== line);
         refreshOrderView();
@@ -176,6 +207,10 @@
     QN.actions['cart-add'] = d => {
         const food = S.get('foods', d.id);
         if (!food || food.status !== 'available') return;
+        if (canAddMore(food) < 1) {
+            UI.toast(shortageText(food), 'warning');
+            return;
+        }
         const line = cart.find(c => c.foodId === food.id);
         if (line) line.qty += 1;
         else cart.push({ foodId: food.id, name: food.name, category: food.category, price: food.price, qty: 1 });
@@ -195,8 +230,12 @@
         if (first) first.focus({ preventScroll: true });
     };
 
+    /** Dòng món của đơn; chốt giá vốn lúc bán (đổi định mức / giá nhập sau này không làm sai lãi cũ) */
     function lineItems() {
-        return cart.map(c => ({ foodId: c.foodId, name: c.name, category: c.category, price: c.price, qty: c.qty }));
+        return cart.map(c => ({
+            foodId: c.foodId, name: c.name, category: c.category, price: c.price,
+            cost: S.foodCost(S.get('foods', c.foodId)) || 0, qty: c.qty
+        }));
     }
 
     QN.actions['order-submit'] = async () => {
@@ -215,6 +254,14 @@
         ]);
         if (V.show(U.byId('orderSelectors'), errors)) {
             UI.toast('Vui lòng kiểm tra lại thông tin đơn.', 'warning');
+            return;
+        }
+
+        // Kho có thể đã thay đổi từ lúc chọn món (phiếu xuất, đơn khác…): kiểm tra lại lần cuối
+        const missing = S.shortages(cart);
+        if (missing.length) {
+            UI.toast('Không đủ nguyên liệu: ' + missing.map(m => `${m.ingredient.name} cần ${U.fmtNumber(m.need)} ${m.ingredient.unit}, còn ${U.fmtNumber(m.stock)}`).join('; ') + '. Hãy bớt món hoặc nhập thêm kho.', 'error');
+            refreshOrderView();
             return;
         }
 
@@ -246,8 +293,13 @@
             // Gọi thêm món vào hóa đơn đang mở
             items.forEach(it => {
                 const line = invoice.items.find(x => Number(x.foodId) === it.foodId && x.price === it.price);
-                if (line) line.qty += it.qty;
-                else invoice.items.push(it);
+                if (line) {
+                    // giá vốn bình quân theo số phần nếu định mức / giá nhập đã đổi giữa hai lần gọi
+                    line.cost = Math.round((S.lineCost(line) + it.cost * it.qty) / (line.qty + it.qty));
+                    line.qty += it.qty;
+                } else {
+                    invoice.items.push(it);
+                }
             });
             if (!invoice.voucher && voucher) {
                 invoice.voucher = voucher.id;
@@ -272,6 +324,7 @@
         }
 
         const added = U.sum(items, x => x.qty);
+        const newlyLow = S.consumeForOrder(items, { invoiceId: invoice.id, empId, date: today, time });
         S.db.kitchenOrders.push({
             id: S.nextId('kitchenOrders'), invoiceId: invoice.id, tableId: ctx.tableId, status: 'new',
             date: today, time, extra: !!ctx.open,
@@ -286,6 +339,9 @@
         UI.toast(ctx.open
             ? `Đã gọi thêm ${added} món vào ${U.code('HD', invoice.id)} (${table ? table.name : ''})`
             : `Đã gửi đơn xuống bếp và tạo hóa đơn ${U.code('HD', invoice.id)}`, 'success');
+        if (newlyLow.length) {
+            UI.toast(`Nguyên liệu vừa chạm định mức tối thiểu: ${newlyLow.map(g => `${g.name} còn ${U.fmtNumber(g.stock)} ${g.unit}`).join(', ')}. Nên nhập thêm kho.`, 'warning');
+        }
         renderOrders();
         QN.app.changed();
     };

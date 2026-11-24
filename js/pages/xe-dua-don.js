@@ -112,7 +112,7 @@
             ['delCust', v.custId, x => (x ? null : 'Vui lòng chọn khách hàng')],
             ['delPickup', v.pickup, R.required('Vui lòng nhập điểm đón'), R.maxLength(150)],
             ['delDropoff', v.dropoff, R.maxLength(150)],
-            ['delTime', v.time, t => (t && t.slice(0, 10) < U.todayLocal() ? 'Thời gian đón đã qua' : null)],
+            ['delTime', v.time, t => (t && t < U.todayLocal() + 'T' + U.nowTime() ? 'Thời gian đón đã qua' : null)],
             ['delGuests', v.guests, R.required('Vui lòng nhập số người'), R.integer({ min: 1, max: 50 }),
                 g => (maxSeats && Number(g) > maxSeats ? `Xe lớn nhất chỉ có ${maxSeats} chỗ` : null)],
             ['delNote', v.note, R.maxLength(200)]

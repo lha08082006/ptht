@@ -169,16 +169,69 @@
         return html`<div class="empty"><i class="fas ${icon}" aria-hidden="true"></i><p>${text}</p></div>`;
     }
 
+    /* Bảng tích lũy theo thời gian (hóa đơn, phiếu kho…) chỉ hiện 50 dòng đầu + nút "Xem thêm",
+       để trang không dài hàng chục nghìn pixel khi dữ liệu đã lưu nhiều tháng. */
+    const PAGE_SIZE = 50;
+    const pageLimits = {};
+
     /** Đổ dòng vào tbody; bảng rỗng thì hiện thông báo thay vì để trắng */
-    function renderRows(tbodyOrId, rows, { empty = 'Chưa có dữ liệu', icon = 'fa-inbox' } = {}) {
+    function renderRows(tbodyOrId, rows, { empty = 'Chưa có dữ liệu', icon = 'fa-inbox', paged = true } = {}) {
         const tbody = typeof tbodyOrId === 'string' ? U.byId(tbodyOrId) : tbodyOrId;
         if (!tbody) return;
+        const cols = tbody.closest('table').querySelectorAll('thead th').length || 1;
         if (!rows.length) {
-            const cols = tbody.closest('table').querySelectorAll('thead th').length || 1;
             tbody.innerHTML = html`<tr class="table__empty"><td colspan="${cols}"><i class="fas ${icon}" aria-hidden="true"></i>${empty}</td></tr>`;
             return;
         }
-        tbody.innerHTML = rows.join('');
+        const limit = paged ? (pageLimits[tbody.id] || PAGE_SIZE) : Infinity;
+        if (rows.length <= limit) {
+            tbody.innerHTML = rows.join('');
+            return;
+        }
+        const rest = rows.length - limit;
+        tbody.innerHTML = rows.slice(0, limit).join('') + html`
+            <tr class="table__more"><td colspan="${cols}"><div class="table__more-inner">
+                <button type="button" class="btn btn--ghost btn--sm" data-action="table-more" data-target="${tbody.id}"><i class="fas fa-angles-down" aria-hidden="true"></i>Xem thêm ${Math.min(rest, PAGE_SIZE)} dòng</button>
+                <span class="table__more-note">Đang hiện ${U.fmtNumber(limit)} / ${U.fmtNumber(rows.length)} dòng</span>
+            </div></td></tr>`;
+    }
+
+    /** Về lại 50 dòng đầu (gọi khi chuyển trang) */
+    function resetPaging() {
+        Object.keys(pageLimits).forEach(key => { delete pageLimits[key]; });
+    }
+
+    QN.actions['table-more'] = d => {
+        pageLimits[d.target] = (pageLimits[d.target] || PAGE_SIZE) + PAGE_SIZE;
+        const page = QN.pages[QN.app.currentPage()];
+        if (page) keepFocus(() => page.render());
+    };
+
+    /** Số liệu dài (453.480.700đ) tự thu nhỏ chữ cho vừa thẻ thay vì rớt "đ" xuống dòng */
+    function fitText(el, min = 15) {
+        el.style.fontSize = '';
+        const available = el.clientWidth;
+        if (!available) return;
+        // Đo bằng Range (có phần lẻ pixel): scrollWidth làm tròn nên bỏ sót tràn dưới 1px → vẫn bị cắt "…"
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        let size = parseFloat(getComputedStyle(el).fontSize);
+        while (range.getBoundingClientRect().width > available - 0.5 && size > min) {
+            size -= 0.5;
+            el.style.fontSize = size + 'px';
+        }
+    }
+
+    const refitAll = () => document.querySelectorAll('.page.is-active .stat__value--fit').forEach(el => fitText(el));
+    let fitTimer = null;
+    window.addEventListener('resize', () => {
+        clearTimeout(fitTimer);
+        fitTimer = setTimeout(refitAll, 150);
+    });
+    // Font chữ tải xong sau lần vẽ đầu (chữ rộng hơn font dự phòng) → đo lại
+    if (document.fonts) {
+        document.fonts.ready.then(refitAll);
+        if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', refitAll);
     }
 
     /** Đổ option vào select, giữ lựa chọn cũ nếu còn hợp lệ */
@@ -195,7 +248,9 @@
 
     function setText(id, text) {
         const el = U.byId(id);
-        if (el) el.textContent = text;
+        if (!el) return;
+        el.textContent = text;
+        if (el.classList.contains('stat__value--fit')) fitText(el);
     }
 
     /**
@@ -248,6 +303,8 @@
         iconButton,
         emptyState,
         renderRows,
+        resetPaging,
+        fitText,
         fillSelect,
         setText,
         syncTabs,

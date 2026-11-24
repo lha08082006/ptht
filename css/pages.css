@@ -291,6 +291,42 @@
     background: var(--brand-700);
 }
 
+/* Theo định mức: còn ít phần / hết nguyên liệu */
+.menu-card__stock {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: var(--warning);
+}
+
+.menu-card.is-sold-out {
+    cursor: not-allowed;
+    border-style: dashed;
+    background: var(--surface-2);
+}
+
+.menu-card.is-sold-out:hover {
+    border-color: var(--border-strong);
+    box-shadow: none;
+}
+
+.menu-card.is-sold-out:active {
+    transform: none;
+}
+
+.menu-card.is-sold-out .menu-card__name,
+.menu-card.is-sold-out .menu-card__price {
+    color: var(--text-3);
+}
+
+.menu-card.is-sold-out .menu-card__stock {
+    color: var(--danger);
+}
+
+.menu-card.is-sold-out .menu-card__badge {
+    color: var(--text-3);
+    background: var(--surface-3);
+}
+
 .cart {
     position: sticky;
     top: calc(var(--topbar-h) + var(--sp-4));

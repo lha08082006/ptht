@@ -57,11 +57,12 @@ window.QN = window.QN || {};
 
     /**
      * Tiền dạng ngắn cho nhãn biểu đồ (dấu phẩy thập phân kiểu Việt Nam):
-     * 1.250.000 → "1,3tr" · 328.000 → "328k" · 25.000 → "25k" · 800 → "800đ"
+     * 2.400.000.000 → "2,4tỷ" · 1.250.000 → "1,3tr" · 328.000 → "328k" · 25.000 → "25k" · 800 → "800đ"
      */
     function fmtShortMoney(n) {
         const x = Number(n) || 0;
         const abs = Math.abs(x);
+        if (abs >= 1e9) return (x / 1e9).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + 'tỷ';
         if (abs >= 1e6) return (x / 1e6).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + 'tr';
         if (abs >= 1e3) return Math.round(x / 1e3).toLocaleString('vi-VN') + 'k';
         return fmtNumber(x) + 'đ';
@@ -70,6 +71,14 @@ window.QN = window.QN || {};
     function fmtPercent(ratio, digits = 0) {
         const x = (Number(ratio) || 0) * 100;
         return x.toLocaleString('vi-VN', { maximumFractionDigits: digits }) + '%';
+    }
+
+    /** Tỷ trọng: phần rất nhỏ hiện "<1%" (không phải "0%"), gần trọn hiện ">99%" (không phải "100%") */
+    function fmtShare(ratio) {
+        const r = Number(ratio) || 0;
+        if (r > 0 && r < 0.005) return '<1%';
+        if (r < 1 && r >= 0.995) return '>99%';
+        return fmtPercent(r);
     }
 
     /* ---------- Ngày giờ (luôn theo giờ máy, không dùng toISOString) ---------- */
@@ -185,7 +194,7 @@ window.QN = window.QN || {};
 
     QN.utils = {
         SafeHtml, escapeHtml, html, raw,
-        fmtNumber, fmtMoney, fmtShortMoney, fmtPercent,
+        fmtNumber, fmtMoney, fmtShortMoney, fmtPercent, fmtShare,
         pad2, toISODate, todayLocal, nowTime, nowDateTime, parseISODate, addDays, daysBetween,
         fmtDate, fmtDateShort, fmtDateTime, fmtRelativeDate,
         code, nextId, normalizeText, matches, digitsOnly, byId, sum

@@ -29,6 +29,19 @@
             return null;
         },
 
+        /** Số có thể có phần thập phân (kg, lít…): tối đa `decimals` chữ số sau dấu phẩy */
+        number: ({ min, max, decimals = 3, above } = {}) => v => {
+            if (isBlank(v)) return null;
+            const n = Number(v);
+            if (!Number.isFinite(n)) return 'Phải là số';
+            if (above != null && n <= above) return `Phải lớn hơn ${U.fmtNumber(above)}`;
+            if (min != null && n < min) return `Tối thiểu là ${U.fmtNumber(min)}`;
+            if (max != null && n > max) return `Tối đa là ${U.fmtNumber(max)}`;
+            const scaled = n * Math.pow(10, decimals);
+            if (Math.abs(scaled - Math.round(scaled)) > 1e-6) return `Tối đa ${decimals} chữ số sau dấu phẩy`;
+            return null;
+        },
+
         pattern: (regex, message) => v => (isBlank(v) || regex.test(String(v)) ? null : message),
 
         dateFrom: (minIso, message) => v => (isBlank(v) || v >= minIso ? null : message),

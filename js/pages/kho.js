@@ -26,7 +26,7 @@
             { id: 'ingName', key: 'name' },
             { id: 'ingPrice', key: 'price', type: 'int' },
             { id: 'ingUnit', key: 'unit', type: 'raw' },
-            { id: 'ingMinStock', key: 'minStock', type: 'int' },
+            { id: 'ingMinStock', key: 'minStock', type: 'number' },
             { id: 'ingSupplier', key: 'supplierId', type: 'select-int' }
         ],
         defaults: () => ({ stock: 0 }),
@@ -35,7 +35,12 @@
         },
         columns: [
             { render: (r, i) => i + 1 },
-            { className: 't-strong', render: r => r.name },
+            { render: r => {
+                const used = S.foodsUsing(r.id);
+                return html`<span class="t-strong">${r.name}</span>${used.length
+                    ? html`<span class="t-sub" title="${used.map(f => f.name).join(', ')}">Dùng cho ${used.length} món</span>`
+                    : html`<span class="t-sub">Chưa dùng trong định mức món</span>`}`;
+            } },
             { render: r => r.unit },
             { className: 'num', render: r => U.fmtMoney(r.price) },
             { render: r => S.supplierName(r.supplierId) },
@@ -46,17 +51,28 @@
         display: r => r.name,
         validate: (v, existing) => {
             const hasReceipts = existing && S.db.receipts.some(r => r.ingredientId === existing.id);
+            const usedIn = existing ? S.foodsUsing(existing.id) : [];
+            const unitRule = u => {
+                if (!existing || u === existing.unit) return null;
+                if (hasReceipts) return `Không đổi được đơn vị vì đã có phiếu kho tính theo “${existing.unit}”`;
+                if (usedIn.length) return `Không đổi được đơn vị vì định mức của ${usedIn.length} món đang tính theo “${existing.unit}”`;
+                return null;
+            };
             return V.check([
                 ['ingName', v.name, R.required('Vui lòng nhập tên nguyên liệu'), R.maxLength(80),
                     R.unique(S.db.ingredients, x => x.name, existing, 'Nguyên liệu này đã có')],
                 ['ingPrice', v.price, R.required('Vui lòng nhập đơn giá'), R.integer({ min: 1, max: 100000000 })],
-                ['ingUnit', v.unit, u => (hasReceipts && u !== existing.unit ? `Không đổi được đơn vị vì đã có phiếu kho tính theo “${existing.unit}”` : null)],
-                ['ingMinStock', v.minStock, R.required('Vui lòng nhập định mức tồn tối thiểu'), R.integer({ min: 0, max: 100000 })]
+                ['ingUnit', v.unit, unitRule],
+                ['ingMinStock', v.minStock, R.required('Vui lòng nhập định mức tồn tối thiểu'), R.number({ min: 0, max: 100000, decimals: 3 })]
             ]);
         },
         canDelete: r => {
-            const used = S.db.receipts.filter(x => x.ingredientId === r.id).length;
-            return used ? `Không thể xóa “${r.name}”: đã có ${used} phiếu nhập / xuất kho.` : null;
+            const receipts = S.db.receipts.filter(x => x.ingredientId === r.id).length;
+            const foods = S.foodsUsing(r.id);
+            const parts = [];
+            if (foods.length) parts.push(`đang có trong định mức của ${foods.length} món (${foods.map(f => f.name).join(', ')})`);
+            if (receipts) parts.push(`đã có ${receipts} phiếu nhập / xuất kho`);
+            return parts.length ? `Không thể xóa “${r.name}”: ${parts.join(' và ')}.` : null;
         }
     });
 
@@ -101,18 +117,21 @@
 
     function renderInventory() {
         const all = S.db.receipts.slice().sort(S.byNewest);
+        // Xuất tay (hủy hàng, dùng nội bộ…) tách khỏi xuất bán tự động theo định mức món
+        const kindOf = r => (r.type === 'import' ? 'import' : (r.auto ? 'sale' : 'export'));
         UI.syncTabs('inventory', inventoryFilter, {
             all: all.length,
-            import: all.filter(r => r.type === 'import').length,
-            export: all.filter(r => r.type === 'export').length
+            import: all.filter(r => kindOf(r) === 'import').length,
+            export: all.filter(r => kindOf(r) === 'export').length,
+            sale: all.filter(r => kindOf(r) === 'sale').length
         });
         const query = val('searchReceipt').trim();
-        const list = (inventoryFilter === 'all' ? all : all.filter(r => r.type === inventoryFilter))
-            .filter(r => U.matches(query, U.code('PK', r.id), r.ingredientName, S.supplierName(r.supplierId), S.employeeName(r.empId)));
+        const list = (inventoryFilter === 'all' ? all : all.filter(r => kindOf(r) === inventoryFilter))
+            .filter(r => U.matches(query, U.code('PK', r.id), r.ingredientName, S.supplierName(r.supplierId), S.employeeName(r.empId), r.note || '', r.invoiceId ? U.code('HD', r.invoiceId) : ''));
         UI.renderRows('inventoryTableBody', list.map(r => html`
             <tr>
                 <td class="t-code">${U.code('PK', r.id)}</td>
-                <td>${UI.statusBadge('receipt', r.type)}</td>
+                <td>${UI.statusBadge('receipt', r.type)}${receiptSub(r)}</td>
                 <td class="nowrap">${U.fmtDate(r.date)}</td>
                 <td>${S.employeeName(r.empId)}</td>
                 <td>${r.supplierId ? S.supplierName(r.supplierId) : html`<span class="text-muted">—</span>`}</td>
@@ -124,6 +143,14 @@
             ? { empty: `Không tìm thấy phiếu kho cho “${query}”`, icon: 'fa-magnifying-glass' }
             : { empty: inventoryFilter === 'all' ? 'Chưa có phiếu kho nào' : 'Không có phiếu ở loại này' });
     }
+
+    /** Dòng phụ dưới loại phiếu: phiếu xuất bán tự động ghi mã hóa đơn, phiếu tay ghi chú */
+    function receiptSub(r) {
+        if (r.auto && r.invoiceId) return html`<span class="t-sub">Bán · ${U.code('HD', r.invoiceId)}</span>`;
+        return r.note ? html`<span class="t-sub" title="${r.note}">${r.note}</span>` : '';
+    }
+
+    const parseQty = el => (el.validity.badInput ? NaN : (el.value.trim() === '' ? '' : Number(el.value)));
 
     /** Ẩn/hiện ô NCC theo loại phiếu, tự chọn NCC của nguyên liệu, xem trước tồn kho */
     function syncReceiptForm(changed) {
@@ -138,10 +165,9 @@
             preview.textContent = 'Chọn nguyên liệu để xem tồn kho hiện tại.';
             return;
         }
-        const qtyRaw = val('rcpQty');
-        const qty = Number(qtyRaw);
-        const validQty = qtyRaw !== '' && Number.isInteger(qty) && qty > 0;
-        const after = type === 'import' ? ingredient.stock + qty : ingredient.stock - qty;
+        const qty = parseQty(U.byId('rcpQty'));
+        const validQty = qty !== '' && Number.isFinite(qty) && qty > 0;
+        const after = S.round3(type === 'import' ? ingredient.stock + qty : ingredient.stock - qty);
         preview.innerHTML = html`
             <span>Tồn hiện tại: <strong>${U.fmtNumber(ingredient.stock)} ${ingredient.unit}</strong></span>
             <span>Đơn giá: <strong>${U.fmtMoney(ingredient.price)}</strong></span>
@@ -176,29 +202,30 @@
         const date = val('rcpDate');
         const empId = Number(val('rcpEmp')) || 0;
         const ingredient = S.get('ingredients', val('rcpIngredient'));
-        const qtyEl = U.byId('rcpQty');
-        const qty = qtyEl.validity.badInput ? NaN : (qtyEl.value.trim() === '' ? '' : Number(qtyEl.value));
+        const qty = parseQty(U.byId('rcpQty'));
+        const note = val('rcpNote').trim().replace(/\s+/g, ' ');
         const today = U.todayLocal();
         const errors = V.check([
             ['rcpDate', date, R.required('Vui lòng chọn ngày lập phiếu'), R.dateTo(today, 'Ngày lập phiếu không được ở tương lai')],
             ['rcpEmp', empId, v => (v ? null : 'Vui lòng chọn nhân viên')],
             ['rcpIngredient', ingredient, v => (v ? null : 'Vui lòng chọn nguyên liệu')],
-            ['rcpQty', qty, R.required('Vui lòng nhập số lượng'), R.integer({ min: 1, max: 100000 }),
-                v => (type === 'export' && ingredient && Number(v) > ingredient.stock
-                    ? `Không đủ tồn kho (còn ${U.fmtNumber(ingredient.stock)} ${ingredient.unit})` : null)]
+            ['rcpQty', qty, R.required('Vui lòng nhập số lượng'), R.number({ above: 0, max: 100000, decimals: 3 }),
+                v => (type === 'export' && ingredient && Number(v) > ingredient.stock + 1e-9
+                    ? `Không đủ tồn kho (còn ${U.fmtNumber(ingredient.stock)} ${ingredient.unit})` : null)],
+            ['rcpNote', note, R.maxLength(120)]
         ]);
         if (V.show(form, errors)) return;
 
         const supplierId = type === 'import' ? (Number(val('rcpSupplier')) || null) : null;
-        ingredient.stock += type === 'import' ? qty : -qty;
+        ingredient.stock = S.round3(ingredient.stock + (type === 'import' ? qty : -qty));
         const id = S.nextId('receipts');
         S.db.receipts.push({
-            id, type, date, empId, supplierId,
+            id, type, date, time: date === today ? U.nowTime() : '', empId, supplierId,
             ingredientId: ingredient.id, ingredientName: ingredient.name,
-            qty, unitPrice: ingredient.price, total: qty * ingredient.price
+            qty: S.round3(qty), unitPrice: ingredient.price, total: Math.round(qty * ingredient.price), note
         });
         UI.closeModal('receiptModal');
-        UI.toast(`Đã lưu phiếu ${type === 'import' ? 'nhập' : 'xuất'} ${U.code('PK', id)}: ${ingredient.name} ${type === 'import' ? '+' : '−'}${qty} ${ingredient.unit}`, 'success');
+        UI.toast(`Đã lưu phiếu ${type === 'import' ? 'nhập' : 'xuất'} ${U.code('PK', id)}: ${ingredient.name} ${type === 'import' ? '+' : '−'}${U.fmtNumber(qty)} ${ingredient.unit}`, 'success');
         renderInventory();
         QN.app.changed();
     };
@@ -214,6 +241,8 @@
                 <div><dt>Ngày lập</dt><dd>${U.fmtDate(r.date)}</dd></div>
                 <div><dt>Nhân viên lập</dt><dd>${S.employeeName(r.empId)}</dd></div>
                 ${r.supplierId ? html`<div><dt>Nhà cung cấp</dt><dd>${S.supplierName(r.supplierId)}</dd></div>` : ''}
+                ${r.auto && r.invoiceId ? html`<div><dt>Nguồn</dt><dd>Tự động trừ kho theo định mức khi gửi đơn ${U.code('HD', r.invoiceId)} xuống bếp</dd></div>` : ''}
+                ${r.note && !r.auto ? html`<div><dt>Ghi chú</dt><dd>${r.note}</dd></div>` : ''}
             </dl>
             <div class="table-wrap">
                 <table class="table table--fluid table--compact">

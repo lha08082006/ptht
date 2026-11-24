@@ -10,11 +10,11 @@
     <link rel="stylesheet" href="assets/fonts/be-vietnam-pro.css">
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/fontawesome.min.css">
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/solid.min.css">
-    <link rel="stylesheet" href="css/tokens.css?v=12">
-    <link rel="stylesheet" href="css/base.css?v=12">
-    <link rel="stylesheet" href="css/layout.css?v=12">
-    <link rel="stylesheet" href="css/components.css?v=12">
-    <link rel="stylesheet" href="css/pages.css?v=12">
+    <link rel="stylesheet" href="css/tokens.css?v=13">
+    <link rel="stylesheet" href="css/base.css?v=13">
+    <link rel="stylesheet" href="css/layout.css?v=13">
+    <link rel="stylesheet" href="css/components.css?v=13">
+    <link rel="stylesheet" href="css/pages.css?v=13">
 </head>
 <body>
 
@@ -289,12 +289,12 @@
                 </header>
                 <div class="card">
                     <div class="toolbar">
-                        <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm món ăn</span><input type="search" id="searchFood" placeholder="Tìm theo tên món hoặc danh mục…" autocomplete="off" data-rerender="foods"></label>
+                        <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm món ăn</span><input type="search" id="searchFood" placeholder="Tìm theo tên món, danh mục hoặc nguyên liệu…" autocomplete="off" data-rerender="foods"></label>
                         <span class="toolbar__meta" id="foodsMeta"></span>
                     </div>
                     <div class="table-wrap">
                         <table class="table">
-                            <thead><tr><th>STT</th><th>Tên món</th><th>Danh mục</th><th class="num">Giá</th><th>Trạng thái</th><th class="num">Thao tác</th></tr></thead>
+                            <thead><tr><th>STT</th><th>Tên món · định mức 1 phần</th><th>Danh mục</th><th class="num">Giá bán</th><th class="num">Giá vốn</th><th class="num">Lãi gộp</th><th>Còn làm được</th><th>Trạng thái</th><th class="num">Thao tác</th></tr></thead>
                             <tbody id="foodTableBody"></tbody>
                         </table>
                     </div>
@@ -373,7 +373,7 @@
                         <div class="kanban__list" id="kanbanCooking"></div>
                     </section>
                     <section class="kanban__col kanban__col--done" aria-labelledby="kanbanDoneTitle">
-                        <header class="kanban__head"><span class="kanban__dot" aria-hidden="true"></span><h2 id="kanbanDoneTitle">Hoàn thành</h2><span class="kanban__count" id="kanbanDoneCount">0</span></header>
+                        <header class="kanban__head"><span class="kanban__dot" aria-hidden="true"></span><h2 id="kanbanDoneTitle">Hoàn thành hôm nay</h2><span class="kanban__count" id="kanbanDoneCount">0</span></header>
                         <div class="kanban__list" id="kanbanDone"></div>
                     </section>
                 </div>
@@ -385,9 +385,9 @@
                     <h1 class="page-title"><span class="page-title__icon" aria-hidden="true"><i class="fas fa-file-invoice-dollar"></i></span>Hóa đơn bán hàng</h1>
                 </header>
                 <div class="stat-grid">
-                    <article class="stat stat--green"><span class="stat__icon" aria-hidden="true"><i class="fas fa-sack-dollar"></i></span><div class="stat__body"><p class="stat__label">Doanh thu đã thu</p><p class="stat__value stat__value--md" id="invRevenue">0đ</p><p class="stat__sub" id="invRevenueSub"></p></div></article>
-                    <article class="stat stat--gold"><span class="stat__icon" aria-hidden="true"><i class="fas fa-hourglass-half"></i></span><div class="stat__body"><p class="stat__label">Chờ thanh toán</p><p class="stat__value stat__value--md" id="invPending">0đ</p><p class="stat__sub" id="invPendingSub"></p></div></article>
-                    <article class="stat stat--blue"><span class="stat__icon" aria-hidden="true"><i class="fas fa-receipt"></i></span><div class="stat__body"><p class="stat__label">Tổng hóa đơn</p><p class="stat__value stat__value--md" id="invCount">0</p><p class="stat__sub" id="invCountSub"></p></div></article>
+                    <article class="stat stat--green"><span class="stat__icon" aria-hidden="true"><i class="fas fa-sack-dollar"></i></span><div class="stat__body"><p class="stat__label">Doanh thu đã thu</p><p class="stat__value stat__value--md stat__value--fit" id="invRevenue">0đ</p><p class="stat__sub" id="invRevenueSub"></p></div></article>
+                    <article class="stat stat--gold"><span class="stat__icon" aria-hidden="true"><i class="fas fa-hourglass-half"></i></span><div class="stat__body"><p class="stat__label">Chờ thanh toán</p><p class="stat__value stat__value--md stat__value--fit" id="invPending">0đ</p><p class="stat__sub" id="invPendingSub"></p></div></article>
+                    <article class="stat stat--blue"><span class="stat__icon" aria-hidden="true"><i class="fas fa-receipt"></i></span><div class="stat__body"><p class="stat__label">Tổng hóa đơn</p><p class="stat__value stat__value--md stat__value--fit" id="invCount">0</p><p class="stat__sub" id="invCountSub"></p></div></article>
                 </div>
                 <div class="card">
                     <div class="toolbar">
@@ -478,9 +478,10 @@
                         <div class="tabs" role="group" aria-label="Lọc phiếu kho" data-tabs="inventory">
                             <button type="button" class="tab is-active" data-action="inventory-filter" data-filter="all" aria-pressed="true">Tất cả <span class="tab__count" data-count="all">0</span></button>
                             <button type="button" class="tab" data-action="inventory-filter" data-filter="import" aria-pressed="false">Nhập kho <span class="tab__count" data-count="import">0</span></button>
-                            <button type="button" class="tab" data-action="inventory-filter" data-filter="export" aria-pressed="false">Xuất kho <span class="tab__count" data-count="export">0</span></button>
+                            <button type="button" class="tab" data-action="inventory-filter" data-filter="export" aria-pressed="false">Xuất tay <span class="tab__count" data-count="export">0</span></button>
+                            <button type="button" class="tab" data-action="inventory-filter" data-filter="sale" aria-pressed="false">Xuất bán <span class="tab__count" data-count="sale">0</span></button>
                         </div>
-                        <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm phiếu kho</span><input type="search" id="searchReceipt" placeholder="Tìm theo mã phiếu, nguyên liệu, NCC…" autocomplete="off" data-rerender="inventory"></label>
+                        <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm phiếu kho</span><input type="search" id="searchReceipt" placeholder="Tìm theo mã phiếu, mã HĐ, nguyên liệu, NCC, ghi chú…" autocomplete="off" data-rerender="inventory"></label>
                     </div>
                     <div class="table-wrap">
                         <table class="table">
@@ -548,14 +549,14 @@
                     </form>
                 </header>
                 <div class="stat-grid stat-grid--4">
-                    <article class="stat stat--green"><span class="stat__icon" aria-hidden="true"><i class="fas fa-money-bill-wave"></i></span><div class="stat__body"><p class="stat__label">Tổng doanh thu</p><p class="stat__value stat__value--md" id="revTotal">0đ</p><p class="stat__sub" id="revTotalSub"></p></div></article>
-                    <article class="stat stat--gold"><span class="stat__icon" aria-hidden="true"><i class="fas fa-hourglass-half"></i></span><div class="stat__body"><p class="stat__label">Chờ thanh toán</p><p class="stat__value stat__value--md" id="revPending">0đ</p><p class="stat__sub" id="revPendingSub"></p></div></article>
-                    <article class="stat stat--blue"><span class="stat__icon" aria-hidden="true"><i class="fas fa-file-invoice"></i></span><div class="stat__body"><p class="stat__label">Đã thanh toán / tổng HĐ</p><p class="stat__value stat__value--md" id="revCount">0/0</p><p class="stat__sub" id="revCountSub"></p></div></article>
-                    <article class="stat stat--violet"><span class="stat__icon" aria-hidden="true"><i class="fas fa-calculator"></i></span><div class="stat__body"><p class="stat__label">Trung bình / hóa đơn</p><p class="stat__value stat__value--md" id="revAvg">0đ</p><p class="stat__sub" id="revAvgSub"></p></div></article>
+                    <article class="stat stat--green"><span class="stat__icon" aria-hidden="true"><i class="fas fa-money-bill-wave"></i></span><div class="stat__body"><p class="stat__label">Tổng doanh thu</p><p class="stat__value stat__value--md stat__value--fit" id="revTotal">0đ</p><p class="stat__sub" id="revTotalSub"></p></div></article>
+                    <article class="stat stat--gold"><span class="stat__icon" aria-hidden="true"><i class="fas fa-hourglass-half"></i></span><div class="stat__body"><p class="stat__label">Chờ thanh toán</p><p class="stat__value stat__value--md stat__value--fit" id="revPending">0đ</p><p class="stat__sub" id="revPendingSub"></p></div></article>
+                    <article class="stat stat--blue"><span class="stat__icon" aria-hidden="true"><i class="fas fa-file-invoice"></i></span><div class="stat__body"><p class="stat__label">Đã thanh toán / tổng HĐ</p><p class="stat__value stat__value--md stat__value--fit" id="revCount">0/0</p><p class="stat__sub" id="revCountSub"></p></div></article>
+                    <article class="stat stat--violet"><span class="stat__icon" aria-hidden="true"><i class="fas fa-sack-dollar"></i></span><div class="stat__body"><p class="stat__label" title="Doanh thu đã thu trừ giá vốn nguyên liệu theo định mức">Lãi gộp</p><p class="stat__value stat__value--md stat__value--fit" id="revProfit">0đ</p><p class="stat__sub" id="revProfitSub"></p></div></article>
                 </div>
                 <div class="report-grid report-grid--wide">
                     <div class="card">
-                        <div class="card__header"><h2 class="card__title"><i class="fas fa-chart-column" aria-hidden="true"></i>Doanh thu theo ngày</h2><span class="card__subtitle">Theo ngày thanh toán</span></div>
+                        <div class="card__header"><h2 class="card__title"><i class="fas fa-chart-column" aria-hidden="true"></i><span id="revChartTitle">Doanh thu theo ngày</span></h2><span class="card__subtitle" id="revChartSubtitle">Theo ngày thanh toán</span></div>
                         <div class="chart" id="revenueBarChart"></div>
                     </div>
                     <div class="card">
@@ -592,9 +593,9 @@
                 </header>
                 <div class="stat-grid stat-grid--4">
                     <article class="stat stat--red"><span class="stat__icon" aria-hidden="true"><i class="fas fa-trophy"></i></span><div class="stat__body"><p class="stat__label">Bán chạy nhất</p><p class="stat__value stat__value--md" id="bsTop">—</p><p class="stat__sub" id="bsTopSub"></p></div></article>
-                    <article class="stat stat--green"><span class="stat__icon" aria-hidden="true"><i class="fas fa-bag-shopping"></i></span><div class="stat__body"><p class="stat__label">Tổng số phần bán</p><p class="stat__value stat__value--md" id="bsQty">0</p><p class="stat__sub" id="bsQtySub"></p></div></article>
-                    <article class="stat stat--gold"><span class="stat__icon" aria-hidden="true"><i class="fas fa-coins"></i></span><div class="stat__body"><p class="stat__label">Tổng tiền món</p><p class="stat__value stat__value--md" id="bsRevenue">0đ</p><p class="stat__sub" id="bsRevenueSub">Trước giảm giá voucher</p></div></article>
-                    <article class="stat stat--violet"><span class="stat__icon" aria-hidden="true"><i class="fas fa-utensils"></i></span><div class="stat__body"><p class="stat__label">Số món đã bán</p><p class="stat__value stat__value--md" id="bsKinds">0</p><p class="stat__sub" id="bsKindsSub"></p></div></article>
+                    <article class="stat stat--green"><span class="stat__icon" aria-hidden="true"><i class="fas fa-bag-shopping"></i></span><div class="stat__body"><p class="stat__label">Tổng số phần bán</p><p class="stat__value stat__value--md stat__value--fit" id="bsQty">0</p><p class="stat__sub" id="bsQtySub"></p></div></article>
+                    <article class="stat stat--gold"><span class="stat__icon" aria-hidden="true"><i class="fas fa-coins"></i></span><div class="stat__body"><p class="stat__label">Tổng tiền món</p><p class="stat__value stat__value--md stat__value--fit" id="bsRevenue">0đ</p><p class="stat__sub" id="bsRevenueSub">Trước giảm giá voucher</p></div></article>
+                    <article class="stat stat--violet"><span class="stat__icon" aria-hidden="true"><i class="fas fa-utensils"></i></span><div class="stat__body"><p class="stat__label">Số món đã bán</p><p class="stat__value stat__value--md stat__value--fit" id="bsKinds">0</p><p class="stat__sub" id="bsKindsSub"></p></div></article>
                 </div>
                 <div class="report-grid">
                     <div class="card">
@@ -614,7 +615,7 @@
                     <div class="card__header"><h2 class="card__title"><i class="fas fa-list-ol" aria-hidden="true"></i>Bảng xếp hạng chi tiết</h2></div>
                     <div class="table-wrap">
                         <table class="table">
-                            <thead><tr><th>Hạng</th><th>Món ăn</th><th>Danh mục</th><th class="num">SL bán</th><th class="num">Doanh thu</th><th class="num">% doanh thu</th><th class="num">TB / đơn</th></tr></thead>
+                            <thead><tr><th>Hạng</th><th>Món ăn</th><th>Danh mục</th><th class="num">SL bán</th><th class="num">Doanh thu</th><th class="num">Lãi gộp</th><th class="num">% doanh thu</th><th class="num">TB / đơn</th></tr></thead>
                             <tbody id="bestsellerTableBody"></tbody>
                         </table>
                     </div>
@@ -627,10 +628,10 @@
                     <h1 class="page-title"><span class="page-title__icon" aria-hidden="true"><i class="fas fa-boxes-stacked"></i></span>Báo cáo hàng hóa &amp; tồn kho</h1>
                 </header>
                 <div class="stat-grid stat-grid--4">
-                    <article class="stat stat--blue"><span class="stat__icon" aria-hidden="true"><i class="fas fa-warehouse"></i></span><div class="stat__body"><p class="stat__label">Giá trị tồn kho</p><p class="stat__value stat__value--md" id="stValue">0đ</p><p class="stat__sub" id="stValueSub"></p></div></article>
-                    <article class="stat stat--green"><span class="stat__icon" aria-hidden="true"><i class="fas fa-arrow-down"></i></span><div class="stat__body"><p class="stat__label">Tổng nhập</p><p class="stat__value stat__value--md" id="stImport">0đ</p><p class="stat__sub" id="stImportSub"></p></div></article>
-                    <article class="stat stat--red"><span class="stat__icon" aria-hidden="true"><i class="fas fa-arrow-up"></i></span><div class="stat__body"><p class="stat__label">Tổng xuất</p><p class="stat__value stat__value--md" id="stExport">0đ</p><p class="stat__sub" id="stExportSub"></p></div></article>
-                    <article class="stat stat--gold"><span class="stat__icon" aria-hidden="true"><i class="fas fa-triangle-exclamation"></i></span><div class="stat__body"><p class="stat__label">Sắp hết hàng</p><p class="stat__value stat__value--md" id="stLow">0</p><p class="stat__sub" id="stLowSub"></p></div></article>
+                    <article class="stat stat--blue"><span class="stat__icon" aria-hidden="true"><i class="fas fa-warehouse"></i></span><div class="stat__body"><p class="stat__label">Giá trị tồn kho</p><p class="stat__value stat__value--md stat__value--fit" id="stValue">0đ</p><p class="stat__sub" id="stValueSub"></p></div></article>
+                    <article class="stat stat--green"><span class="stat__icon" aria-hidden="true"><i class="fas fa-arrow-down"></i></span><div class="stat__body"><p class="stat__label">Tổng nhập</p><p class="stat__value stat__value--md stat__value--fit" id="stImport">0đ</p><p class="stat__sub" id="stImportSub"></p></div></article>
+                    <article class="stat stat--red"><span class="stat__icon" aria-hidden="true"><i class="fas fa-arrow-up"></i></span><div class="stat__body"><p class="stat__label">Tổng xuất</p><p class="stat__value stat__value--md stat__value--fit" id="stExport">0đ</p><p class="stat__sub" id="stExportSub"></p></div></article>
+                    <article class="stat stat--gold"><span class="stat__icon" aria-hidden="true"><i class="fas fa-triangle-exclamation"></i></span><div class="stat__body"><p class="stat__label">Sắp hết hàng</p><p class="stat__value stat__value--md stat__value--fit" id="stLow">0</p><p class="stat__sub" id="stLowSub"></p></div></article>
                 </div>
                 <div class="report-grid">
                     <div class="card">
@@ -726,6 +727,14 @@
                     <div class="field field--full"><label class="field__label" for="foodStatus">Trạng thái</label>
                         <select class="input" id="foodStatus"><option value="available">Có sẵn</option><option value="unavailable">Hết món</option></select>
                     </div>
+                    <fieldset class="recipe field--full">
+                        <legend class="recipe__title">Định mức nguyên liệu cho 1 phần</legend>
+                        <p class="recipe__hint">Lượng tính theo đơn vị của từng nguyên liệu (ví dụ 0,3 kg; 1 lon). Gửi đơn xuống bếp sẽ tự trừ kho theo định mức này.</p>
+                        <div class="recipe__rows" id="foodRecipe"></div>
+                        <p class="recipe__empty" id="foodRecipeEmpty">Chưa có nguyên liệu nào.</p>
+                        <button type="button" class="btn btn--ghost btn--sm" id="foodRecipeAdd" data-action="recipe-add-row"><i class="fas fa-plus" aria-hidden="true"></i>Thêm nguyên liệu</button>
+                        <p class="recipe__summary" id="foodRecipeSummary" aria-live="polite"></p>
+                    </fieldset>
                 </div>
             </div>
             <footer class="modal__footer"><button type="button" class="btn btn--ghost" data-close>Hủy</button><button type="submit" class="btn btn--secondary"><i class="fas fa-floppy-disk" aria-hidden="true"></i>Lưu</button></footer>
@@ -787,10 +796,10 @@
                     <div class="field field--full"><label class="field__label" for="ingName">Tên nguyên liệu <span class="field__req" aria-hidden="true">*</span></label><input class="input" type="text" id="ingName" maxlength="80" placeholder="Tên nguyên liệu" autocomplete="off"><p class="field__error"></p></div>
                     <div class="field"><label class="field__label" for="ingPrice">Đơn giá (VNĐ) <span class="field__req" aria-hidden="true">*</span></label><input class="input" type="number" id="ingPrice" min="1" step="1000" inputmode="numeric" placeholder="180000"><p class="field__error"></p></div>
                     <div class="field"><label class="field__label" for="ingUnit">Đơn vị tính</label>
-                        <select class="input" id="ingUnit"><option>kg</option><option>lít</option><option>thùng</option><option>hộp</option><option>chai</option><option>gói</option><option>cái</option></select>
+                        <select class="input" id="ingUnit"><option>kg</option><option>lít</option><option>lon</option><option>chai</option><option>thùng</option><option>hộp</option><option>gói</option><option>quả</option><option>cái</option></select>
                         <p class="field__error"></p>
                     </div>
-                    <div class="field"><label class="field__label" for="ingMinStock">Định mức tồn tối thiểu <span class="field__req" aria-hidden="true">*</span></label><input class="input" type="number" id="ingMinStock" min="0" step="1" inputmode="numeric" value="5"><p class="field__hint">Tồn ≤ định mức sẽ báo “Sắp hết”.</p><p class="field__error"></p></div>
+                    <div class="field"><label class="field__label" for="ingMinStock">Định mức tồn tối thiểu <span class="field__req" aria-hidden="true">*</span></label><input class="input" type="number" id="ingMinStock" min="0" step="any" inputmode="decimal" value="5"><p class="field__hint">Tồn ≤ định mức sẽ báo “Sắp hết”.</p><p class="field__error"></p></div>
                     <div class="field"><label class="field__label" for="ingSupplier">Nhà cung cấp</label><select class="input" id="ingSupplier"></select><p class="field__hint">Tồn kho chỉ thay đổi qua phiếu nhập / xuất kho.</p></div>
                 </div>
             </div>
@@ -814,7 +823,8 @@
                     <div class="field"><label class="field__label" for="rcpEmp">Nhân viên lập phiếu</label><select class="input" id="rcpEmp"></select><p class="field__error"></p></div>
                     <div class="field" id="rcpSupplierField"><label class="field__label" for="rcpSupplier">Nhà cung cấp</label><select class="input" id="rcpSupplier"></select></div>
                     <div class="field"><label class="field__label" for="rcpIngredient">Nguyên liệu <span class="field__req" aria-hidden="true">*</span></label><select class="input" id="rcpIngredient"></select><p class="field__error"></p></div>
-                    <div class="field"><label class="field__label" for="rcpQty">Số lượng <span class="field__req" aria-hidden="true">*</span></label><input class="input" type="number" id="rcpQty" min="1" step="1" inputmode="numeric" placeholder="0"><p class="field__error"></p></div>
+                    <div class="field"><label class="field__label" for="rcpQty">Số lượng <span class="field__req" aria-hidden="true">*</span></label><input class="input" type="number" id="rcpQty" min="0" step="any" inputmode="decimal" placeholder="0"><p class="field__error"></p></div>
+                    <div class="field field--full"><label class="field__label" for="rcpNote">Ghi chú</label><input class="input" type="text" id="rcpNote" maxlength="120" placeholder="Ví dụ: hàng hỏng, xuất dùng nội bộ, 10 thùng × 24 lon" autocomplete="off"><p class="field__error"></p></div>
                     <div class="form-preview" id="rcpPreview" aria-live="polite"></div>
                 </div>
             </div>
@@ -957,21 +967,21 @@
 </div>
 
 <script src="assets/vendor/qrcode-generator/qrcode.js"></script>
-<script src="js/core/utils.js?v=12"></script>
-<script src="js/core/data.js?v=12"></script>
-<script src="js/core/store.js?v=12"></script>
-<script src="js/core/ui.js?v=12"></script>
-<script src="js/core/validate.js?v=12"></script>
-<script src="js/core/charts.js?v=12"></script>
-<script src="js/core/crud.js?v=12"></script>
-<script src="js/pages/tong-quan.js?v=12"></script>
-<script src="js/pages/khach-hang.js?v=12"></script>
-<script src="js/pages/ban-hang.js?v=12"></script>
-<script src="js/pages/goi-mon.js?v=12"></script>
-<script src="js/pages/nha-bep.js?v=12"></script>
-<script src="js/pages/kho.js?v=12"></script>
-<script src="js/pages/xe-dua-don.js?v=12"></script>
-<script src="js/pages/bao-cao.js?v=12"></script>
-<script src="js/app.js?v=12"></script>
+<script src="js/core/utils.js?v=13"></script>
+<script src="js/core/data.js?v=13"></script>
+<script src="js/core/store.js?v=13"></script>
+<script src="js/core/ui.js?v=13"></script>
+<script src="js/core/validate.js?v=13"></script>
+<script src="js/core/charts.js?v=13"></script>
+<script src="js/core/crud.js?v=13"></script>
+<script src="js/pages/tong-quan.js?v=13"></script>
+<script src="js/pages/khach-hang.js?v=13"></script>
+<script src="js/pages/ban-hang.js?v=13"></script>
+<script src="js/pages/goi-mon.js?v=13"></script>
+<script src="js/pages/nha-bep.js?v=13"></script>
+<script src="js/pages/kho.js?v=13"></script>
+<script src="js/pages/xe-dua-don.js?v=13"></script>
+<script src="js/pages/bao-cao.js?v=13"></script>
+<script src="js/app.js?v=13"></script>
 </body>
 </html>

@@ -40,6 +40,8 @@
         const revenue = U.sum(paid, i => i.finalTotal);
         const pendingTotal = U.sum(pending, i => i.finalTotal);
         const discount = U.sum(paid, i => i.discount);
+        const cogs = U.sum(paid, i => S.invoiceCost(i));
+        const profit = revenue - cogs;
         const span = U.daysBetween(from, to) + 1;
 
         UI.setText('revTotal', U.fmtMoney(revenue));
@@ -47,30 +49,33 @@
         UI.setText('revPending', U.fmtMoney(pendingTotal));
         UI.setText('revPendingSub', `${pending.length} hóa đơn chưa thanh toán`);
         UI.setText('revCount', `${paid.length}/${list.length}`);
-        UI.setText('revCountSub', `${span} ngày · ${U.fmtDateShort(from)} – ${U.fmtDateShort(to)}`);
-        UI.setText('revAvg', U.fmtMoney(paid.length ? Math.round(revenue / paid.length) : 0));
-        UI.setText('revAvgSub', 'Trên hóa đơn đã thanh toán');
+        UI.setText('revCountSub', `Trung bình ${U.fmtMoney(paid.length ? Math.round(revenue / paid.length) : 0)} / hóa đơn`);
+        UI.setText('revProfit', U.fmtMoney(profit));
+        UI.setText('revProfitSub', revenue ? `Giá vốn ${U.fmtMoney(cogs)} · biên lãi ${U.fmtPercent(profit / revenue)}` : 'Chưa có doanh thu trong kỳ');
 
-        // Doanh thu theo ngày: khoảng ≤ 31 ngày thì hiện đủ từng ngày (kể cả ngày bằng 0)
-        const byDay = {};
-        paid.forEach(i => { const d = S.paidDate(i); byDay[d] = (byDay[d] || 0) + i.finalTotal; });
-        let days = Object.keys(byDay).sort();
-        if (span <= 31) {
-            days = [];
-            for (let k = 0; k < span; k++) days.push(U.addDays(from, k));
-        }
+        // Doanh thu theo thời gian: ≤ 31 ngày hiện từng ngày; dài hơn thì gom theo tuần (≤ 26 tuần) hoặc tháng,
+        // luôn đủ mọi mốc kể cả mốc bằng 0 để trục thời gian không bị co lại
+        const buckets = timeBuckets(from, to, span);
+        const sums = new Map(buckets.map(bk => [bk.key, 0]));
+        paid.forEach(i => {
+            const bk = buckets.find(x => S.paidDate(i) >= x.start && S.paidDate(i) <= x.end);
+            if (bk) sums.set(bk.key, sums.get(bk.key) + i.finalTotal);
+        });
+        const unitName = { day: 'ngày', week: 'tuần', month: 'tháng' }[buckets.unit];
+        UI.setText('revChartTitle', 'Doanh thu theo ' + unitName);
+        UI.setText('revChartSubtitle', 'Theo ngày thanh toán' + (buckets.unit === 'day' ? '' : ` · gom theo ${unitName}`));
         C.columns(U.byId('revenueBarChart'), {
-            title: 'Doanh thu theo ngày thanh toán',
-            data: days.map(d => ({
-                label: U.fmtDateShort(d), tip: U.fmtDate(d),
-                value: byDay[d] || 0, valueText: U.fmtMoney(byDay[d] || 0), short: U.fmtShortMoney(byDay[d] || 0)
-            })),
+            title: 'Doanh thu theo ' + unitName + ' (theo ngày thanh toán)',
+            data: buckets.map(bk => {
+                const value = sums.get(bk.key);
+                return { label: bk.label, tip: bk.tip, value, valueText: U.fmtMoney(value), short: U.fmtShortMoney(value) };
+            }),
             emptyText: 'Chưa có doanh thu trong khoảng ngày này'
         });
 
         C.segments(U.byId('revenueStatusChart'), {
             title: 'Tỷ lệ thanh toán',
-            hero: revenue + pendingTotal > 0 ? { value: U.fmtPercent(revenue / (revenue + pendingTotal)), label: 'giá trị hóa đơn đã thu' } : null,
+            hero: revenue + pendingTotal > 0 ? { value: U.fmtShare(revenue / (revenue + pendingTotal)), label: 'giá trị hóa đơn đã thu' } : null,
             parts: [
                 { label: 'Đã thanh toán', value: revenue, valueText: U.fmtMoney(revenue), color: C.COLORS.good },
                 { label: 'Chờ thanh toán', value: pendingTotal, valueText: U.fmtMoney(pendingTotal), color: C.COLORS.warning, dark: true }
@@ -121,6 +126,44 @@
             </tr>`), { empty: 'Không có hóa đơn trong khoảng ngày này' });
     }
 
+    /** Chia khoảng ngày thành các mốc liên tục: ngày (≤ 31 ngày), tuần thứ Hai–Chủ nhật (≤ 26 tuần) hoặc tháng */
+    function timeBuckets(from, to, span) {
+        const out = [];
+        if (span <= 31) {
+            for (let k = 0; k < span; k++) {
+                const d = U.addDays(from, k);
+                out.push({ key: d, start: d, end: d, label: U.fmtDateShort(d), tip: U.fmtDate(d) });
+            }
+            out.unit = 'day';
+            return out;
+        }
+        if (span <= 7 * 26) {
+            const weekday = (U.parseISODate(from).getDay() + 6) % 7; // 0 = thứ Hai
+            for (let start = U.addDays(from, -weekday); start <= to; start = U.addDays(start, 7)) {
+                const s = start < from ? from : start;
+                const e = U.addDays(start, 6) > to ? to : U.addDays(start, 6);
+                out.push({ key: start, start: s, end: e, label: U.fmtDateShort(s), tip: `Tuần ${U.fmtDateShort(s)} – ${U.fmtDate(e)}` });
+            }
+            out.unit = 'week';
+            return out;
+        }
+        let y = Number(from.slice(0, 4));
+        let m = Number(from.slice(5, 7));
+        for (;;) {
+            const first = `${y}-${U.pad2(m)}-01`;
+            if (first > to) break;
+            const next = m === 12 ? `${y + 1}-01-01` : `${y}-${U.pad2(m + 1)}-01`;
+            const last = U.addDays(next, -1);
+            out.push({
+                key: first, start: first < from ? from : first, end: last > to ? to : last,
+                label: `${U.pad2(m)}/${String(y).slice(2)}`, tip: `Tháng ${m}/${y}`
+            });
+            if (m === 12) { y += 1; m = 1; } else { m += 1; }
+        }
+        out.unit = 'month';
+        return out;
+    }
+
     QN.forms['revenue-range'] = () => renderRevenue();
 
     /* ---------------- BÁO CÁO MÓN BÁN CHẠY ---------------- */
@@ -132,11 +175,12 @@
             const key = it.foodId != null ? 'id:' + it.foodId : 'name:' + it.name;
             if (!map.has(key)) {
                 const food = it.foodId != null ? S.get('foods', it.foodId) : null;
-                map.set(key, { name: food ? food.name : it.name, category: it.category || (food && food.category) || 'Khác', qty: 0, revenue: 0, orders: 0 });
+                map.set(key, { name: food ? food.name : it.name, category: it.category || (food && food.category) || 'Khác', qty: 0, revenue: 0, cost: 0, orders: 0 });
             }
             const x = map.get(key);
             x.qty += it.qty;
             x.revenue += it.price * it.qty;
+            x.cost += S.lineCost(it);
             x.orders += 1;
         }));
         const list = [...map.values()].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
@@ -163,7 +207,7 @@
         C.bars(U.byId('categoryChart'), {
             title: 'Doanh thu theo danh mục',
             data: Object.entries(byCategory).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({
-                label: name, value, valueText: U.fmtMoney(value), note: '· ' + U.fmtPercent(totalRevenue ? value / totalRevenue : 0)
+                label: name, value, valueText: U.fmtMoney(value), note: '· ' + U.fmtShare(totalRevenue ? value / totalRevenue : 0)
             })),
             emptyText: 'Chưa có doanh thu'
         });
@@ -183,6 +227,7 @@
                 <td class="nowrap">${x.category}</td>
                 <td class="num t-strong">${U.fmtNumber(x.qty)}</td>
                 <td class="num">${U.fmtMoney(x.revenue)}</td>
+                <td class="num">${U.fmtMoney(x.revenue - x.cost)}<span class="t-sub">${U.fmtPercent(x.revenue ? (x.revenue - x.cost) / x.revenue : 0)}</span></td>
                 <td class="num">${U.fmtPercent(totalRevenue ? x.revenue / totalRevenue : 0, 1)}</td>
                 <td class="num">${(x.orders ? x.qty / x.orders : 0).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}</td>
             </tr>`), { empty: 'Chưa có món nào được bán' });
@@ -204,7 +249,7 @@
         UI.setText('stExport', U.fmtMoney(U.sum(exports, r => r.total)));
         UI.setText('stExportSub', `${exports.length} phiếu xuất`);
         UI.setText('stLow', U.fmtNumber(low.length));
-        UI.setText('stLowSub', low.length ? low.map(g => g.name).join(', ') : 'Không có nguyên liệu nào chạm định mức');
+        UI.setText('stLowSub', low.length ? low.map(g => `${g.name} (nhập thêm ${U.fmtNumber(S.reorderQty(g))} ${g.unit})`).join(', ') : 'Không có nguyên liệu nào chạm định mức');
 
         // Mỗi thanh so với định mức của chính nguyên liệu đó (đầy = gấp đôi định mức = "Đủ dùng"),
         // nên không so kg với thùng. Vạch mờ ở giữa = định mức tối thiểu.
@@ -225,7 +270,7 @@
             data: rows.map(x => ({
                 label: x.g.name,
                 ratio: x.ratio,
-                markAt: 0.5,
+                markAt: x.min > 0 ? 0.5 : null,
                 valueText: `${U.fmtNumber(x.g.stock)} ${x.g.unit}`,
                 note: `tối thiểu ${U.fmtNumber(x.min)}`,
                 color: levelColor[x.level],
@@ -238,7 +283,7 @@
             title: 'Phân bổ giá trị kho',
             data: ingredients.map(g => ({ name: g.name, value: g.stock * g.price }))
                 .sort((a, b) => b.value - a.value)
-                .map(x => ({ label: x.name, value: x.value, valueText: U.fmtMoney(x.value), note: '· ' + U.fmtPercent(totalValue ? x.value / totalValue : 0) })),
+                .map(x => ({ label: x.name, value: x.value, valueText: U.fmtMoney(x.value), note: '· ' + U.fmtShare(totalValue ? x.value / totalValue : 0) })),
             emptyText: 'Kho đang trống'
         });
 
@@ -269,7 +314,7 @@
                     <td class="num">${U.fmtNumber(S.minStock(g))}</td>
                     <td class="num">${U.fmtMoney(g.price)}</td>
                     <td class="num">${U.fmtMoney(g.stock * g.price)}</td>
-                    <td>${UI.statusBadge('stock', S.stockLevel(g))}</td>
+                    <td>${UI.statusBadge('stock', S.stockLevel(g))}${S.reorderQty(g) ? html`<span class="t-sub">Nên nhập thêm ${U.fmtNumber(S.reorderQty(g))} ${g.unit}</span>` : ''}</td>
                 </tr>`;
         }), { empty: 'Chưa có nguyên liệu' });
     }

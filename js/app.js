@@ -136,6 +136,7 @@
         closeNav();
         closeAttention();
         window.scrollTo(0, 0);
+        UI.resetPaging();
         QN.pages[page].render();
         refreshBell();
     }

@@ -37,9 +37,11 @@
     }
 
     function render() {
+        const today = U.todayLocal();
         COLUMNS.forEach(col => {
             const items = S.db.kitchenOrders
-                .filter(k => k.status === col.status)
+                // đơn đang chờ / đang làm luôn hiện (kể cả từ hôm qua); đơn xong chỉ hiện của hôm nay
+                .filter(k => k.status === col.status && (col.status !== 'done' || (k.date || today) === today))
                 // Đơn đang chờ: cũ nhất lên trước; đơn xong: mới nhất lên trước
                 .sort((a, b) => (col.status === 'done' ? -1 : 1) * (sortKey(a).localeCompare(sortKey(b)) || a.id - b.id));
             UI.setText(col.count, items.length);

@@ -378,6 +378,30 @@
     background: none;
 }
 
+/* Bảng dài: nút "Xem thêm" ở cuối (dính mép trái vùng cuộn để luôn thấy trên điện thoại) */
+.table__more td {
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface-2);
+}
+
+.table__more-inner {
+    position: sticky;
+    left: var(--sp-4);
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2) var(--sp-3);
+}
+
+.table__more:hover td {
+    background: var(--surface-2);
+}
+
+.table__more-note {
+    font-size: var(--fs-xs);
+    color: var(--text-3);
+}
+
 /* ---------- TAB LỌC (một kiểu cho mọi trang) ---------- */
 .tabs {
     display: inline-flex;
@@ -530,6 +554,112 @@ select.input {
 .field__hint {
     font-size: var(--fs-xs);
     color: var(--text-3);
+}
+
+/* Ô số có đơn vị phía sau (kg, lon…) */
+.input-unit {
+    position: relative;
+}
+
+.input-unit .input {
+    padding-right: 52px;
+}
+
+.input-unit__suffix {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    font-size: var(--fs-sm);
+    color: var(--text-3);
+    pointer-events: none;
+    transform: translateY(-50%);
+}
+
+/* Định mức nguyên liệu trong hộp thoại món ăn */
+.recipe {
+    display: grid;
+    gap: var(--sp-2);
+    min-width: 0;
+    margin: 0;
+    padding: var(--sp-3) var(--sp-4) var(--sp-4);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+}
+
+.recipe__title {
+    padding: 0 6px;
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    color: var(--text-2);
+}
+
+.recipe__hint {
+    font-size: var(--fs-xs);
+    color: var(--text-3);
+}
+
+.recipe__rows {
+    display: grid;
+    gap: var(--sp-2);
+}
+
+.recipe__rows:empty {
+    display: none;
+}
+
+.recipe__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 150px auto;
+    align-items: start;
+    gap: var(--sp-2);
+}
+
+.recipe__row .icon-btn {
+    margin-top: 5px;
+}
+
+.recipe__empty {
+    font-size: var(--fs-sm);
+    color: var(--text-3);
+}
+
+.recipe__empty[hidden] {
+    display: none;
+}
+
+.recipe > .btn {
+    justify-self: start;
+}
+
+.recipe__summary {
+    font-size: var(--fs-sm);
+    color: var(--text-2);
+}
+
+.recipe__summary strong {
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+}
+
+.recipe__summary.is-danger,
+.recipe__summary.is-danger strong {
+    font-weight: 600;
+    color: var(--danger);
+}
+
+@media (max-width: 479.98px) {
+    .recipe {
+        padding: var(--sp-3);
+    }
+
+    .recipe__row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .recipe__ing {
+        grid-column: 1 / -1;
+    }
 }
 
 /* ---------- MODAL ---------- */
@@ -778,6 +908,7 @@ select.input {
 .stat--teal .stat__icon { color: var(--teal); background: var(--teal-bg); }
 
 .stat__body {
+    flex: 1 1 auto;
     min-width: 0;
 }
 
@@ -800,12 +931,22 @@ select.input {
     font-size: var(--fs-2xl);
 }
 
-.stat__sub {
-    margin-top: 2px;
+/* Số liệu dài tự thu nhỏ chữ cho vừa một dòng (UI.fitText) */
+.stat__value--fit {
     overflow: hidden;
-    font-size: var(--fs-xs);
     white-space: nowrap;
     text-overflow: ellipsis;
+    overflow-wrap: normal;
+}
+
+/* Dòng phụ được xuống tối đa 2 dòng để không mất chữ quan trọng (vd. "biên lãi 66%") */
+.stat__sub {
+    display: -webkit-box;
+    margin-top: 2px;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-size: var(--fs-xs);
     color: var(--text-3);
 }
 

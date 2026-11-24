@@ -126,10 +126,10 @@
         el.innerHTML = html`
             <div class="segchart">
                 ${hero ? html`<div class="chart-hero"><span class="chart-hero__value">${hero.value}</span><span class="chart-hero__label">${hero.label}</span></div>` : ''}
-                <div class="segbar ${tall ? 'segbar--tall' : 'segbar--thin'}" role="img" aria-label="${title}: ${visible.map(p => p.label + ' ' + U.fmtPercent(p.value / total)).join(', ')}">
+                <div class="segbar ${tall ? 'segbar--tall' : 'segbar--thin'}" role="img" aria-label="${title}: ${visible.map(p => p.label + ' ' + U.fmtShare(p.value / total)).join(', ')}">
                     ${visible.map(p => {
                         const share = p.value / total;
-                        return html`<span class="segbar__part${p.dark ? ' segbar__part--dark' : ''}" style="--w:${(share * 100).toFixed(3)};--c:${p.color}" tabindex="0" data-tip="${p.label}" data-tip-value="${p.valueText} · ${U.fmtPercent(share)}">${tall && share >= 0.16 ? html`<span class="segbar__text">${U.fmtPercent(share)}</span>` : ''}</span>`;
+                        return html`<span class="segbar__part${p.dark ? ' segbar__part--dark' : ''}" style="--w:${(share * 100).toFixed(3)};--c:${p.color}" tabindex="0" data-tip="${p.label}" data-tip-value="${p.valueText} · ${U.fmtShare(share)}">${tall && share >= 0.16 ? html`<span class="segbar__text">${U.fmtShare(share)}</span>` : ''}</span>`;
                     })}
                 </div>
                 <ul class="legend">
@@ -138,7 +138,7 @@
                             <span class="legend__swatch" style="--c:${p.color}" aria-hidden="true"></span>
                             <span class="legend__name">${p.label}</span>
                             <span class="legend__value">${p.valueText}</span>
-                            <span class="legend__pct">${U.fmtPercent(Math.max(p.value, 0) / total)}</span>
+                            <span class="legend__pct">${U.fmtShare(Math.max(p.value, 0) / total)}</span>
                         </li>`)}
                 </ul>
                 ${note ? html`<p class="chart-note">${note}</p>` : ''}
