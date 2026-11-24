@@ -37,9 +37,11 @@ Hệ thống được thiết kế theo luồng quy trình thực tế từ ti�
 - **Công việc bếp (Kanban):** Đơn mới → Đang chế biến → Hoàn thành.
 
 ### 4. Quản lý kho hàng
+- **Định mức BOM (định mức nguyên vật liệu):** trang riêng cho định mức của mọi món — mỗi dòng có định mức tịnh, **tỷ lệ hao hụt** khi sơ chế và **định mức gộp** (lượng thật sự xuất kho = tịnh × (1 + hao hụt)), đơn giá, thành tiền, tỷ trọng trong giá vốn. Ba chế độ xem: *Theo món*, *Theo nguyên liệu* (tra ngược nguyên liệu dùng cho món nào, tồn hiện tại đủ làm bao nhiêu phần), *Định mức – thực tế* (theo kỳ: tồn đầu, nhập, xuất theo định mức, xuất tay, chênh lệch kiểm kê, tồn cuối, phần vượt định mức = thất thoát). Biểu đồ biên lãi gộp theo món; sửa định mức ngay trên trang; **xuất Excel (.xlsx)** 3 sheet.
+- **Kiểm kê kho:** nhập số lượng đếm thực tế của từng nguyên liệu; dòng lệch sổ sách tự sinh phiếu điều chỉnh (thừa / thiếu) để tồn kho khớp thực tế và được tính vào báo cáo đối chiếu định mức.
 - **Nguyên liệu:** Đơn vị tính, đơn giá, nhà cung cấp, tồn kho và **định mức tồn tối thiểu riêng từng nguyên liệu** (5 kg tôm khác 120 lon bia): *Sắp hết* khi tồn ≤ định mức, *Trung bình* khi tồn ≤ 2 × định mức; gợi ý số lượng nên nhập thêm; ghi rõ nguyên liệu đang dùng cho bao nhiêu món.
 - **Nhà cung cấp:** Đối tác cung ứng thực phẩm tươi sống, bia, nước ngọt.
-- **Nhập / xuất kho:** Lập phiếu nhập hoặc xuất (nhận số lẻ như 2,5 kg, có ô ghi chú); tồn kho chỉ thay đổi qua phiếu (tồn = tổng nhập − tổng xuất). Lọc theo *Nhập kho* / *Xuất tay* (hủy hàng, dùng nội bộ) / *Xuất bán* (tự động theo định mức khi gửi bếp).
+- **Nhập / xuất kho:** Lập phiếu nhập hoặc xuất (nhận số lẻ như 2,5 kg, có ô ghi chú); tồn kho chỉ thay đổi qua phiếu (tồn = tổng nhập − tổng xuất). Lọc theo *Nhập kho* / *Xuất tay* (hủy hàng, dùng nội bộ) / *Xuất bán* (tự động theo định mức gộp khi gửi bếp) / *Kiểm kê* (phiếu điều chỉnh).
 
 ### 5. Xe đưa đón khách
 - **Quản lý xe:** Biển số, loại xe, số chỗ, trạng thái.
@@ -71,14 +73,16 @@ ptht/
 │   │   ├── ui.js               # Thông báo, hộp thoại, hộp xác nhận, bảng
 │   │   ├── validate.js         # Kiểm tra dữ liệu nhập, báo lỗi ngay dưới ô
 │   │   ├── charts.js           # Biểu đồ cột, thanh ngang, thanh tỷ lệ (không cần thư viện)
-│   │   └── crud.js             # Thêm / sửa / xóa dùng chung cho các danh mục
+│   │   ├── crud.js             # Thêm / sửa / xóa dùng chung cho các danh mục
+│   │   └── xlsx.js             # Xuất file Excel (.xlsx) không cần thư viện ngoài
 │   ├── pages/                  # Mỗi phân hệ một file, đặt tên theo menu
 │   │   ├── tong-quan.js
 │   │   ├── khach-hang.js       # Khách hàng, nhân viên
 │   │   ├── ban-hang.js         # Món ăn, voucher, quản lý bàn, đặt bàn
 │   │   ├── goi-mon.js          # Gọi món, hóa đơn, thanh toán
 │   │   ├── nha-bep.js
-│   │   ├── kho.js              # Nguyên liệu, nhà cung cấp, nhập / xuất kho
+│   │   ├── kho.js              # Nguyên liệu, nhà cung cấp, nhập / xuất kho, kiểm kê
+│   │   ├── bom.js              # Định mức BOM: theo món, theo nguyên liệu, định mức – thực tế, xuất Excel
 │   │   ├── xe-dua-don.js
 │   │   └── bao-cao.js
 │   └── app.js                  # Đăng nhập, điều hướng, sidebar, khởi động
@@ -144,7 +148,8 @@ Chi tiết từng bộ kiểm thử: xem [`tests/README.md`](tests/README.md).
 - Không đặt bàn cho ngày giờ đã qua; số khách không vượt sức chứa của bàn; chỉ check-in được vào đúng ngày đặt.
 - Trạng thái bàn khớp với dữ liệu: gọi món / check-in → *Đang dùng*; xác nhận đặt bàn → *Đã đặt*; thanh toán xong chỉ trả bàn khi bàn không còn hóa đơn chờ — về *Đã đặt* nếu bàn còn lịch giữ chỗ, không thì về *Trống*.
 - Mỗi bàn chỉ có một hóa đơn đang mở: gọi thêm món được cộng vào hóa đơn đó, tổng tiền và giảm giá voucher tính lại theo toàn bộ món.
-- Gửi đơn xuống bếp trừ kho theo định mức của từng món; không gửi được nếu kho không đủ; giá vốn từng món được chốt lúc bán (đổi định mức hay giá nhập sau này không làm sai lãi của hóa đơn cũ).
+- Gửi đơn xuống bếp trừ kho theo định mức gộp (đã tính hao hụt) của từng món; không gửi được nếu kho không đủ; giá vốn từng món được chốt lúc bán (đổi định mức hay giá nhập sau này không làm sai lãi của hóa đơn cũ).
+- Đối chiếu định mức: dùng thực tế = xuất theo định mức + xuất tay − chênh lệch kiểm kê; phần vượt định mức được tính tiền theo đơn giá nguyên liệu.
 - Không xóa được và không đổi được đơn vị tính của nguyên liệu đang có trong định mức món; lượng định mức, định mức tồn và số lượng phiếu kho nhận tối đa 3 chữ số thập phân.
 - Mỗi xe và mỗi tài xế chỉ chạy một chuyến tại một thời điểm; xe đang chạy chuyến không đổi được trạng thái cho tới khi hoàn tất chuyến.
 - Doanh thu ghi nhận theo ngày thanh toán; hóa đơn chưa thanh toán chỉ hiện ở mục *Chờ thanh toán*.
