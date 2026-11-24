@@ -8,7 +8,12 @@ const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
-const APP_URL = pathToFileURL(path.resolve(__dirname, '..', 'index.html')).href;
+// Mặc định mở file index.html trong repo; đặt APP_URL để kiểm thử trang đã deploy
+// (ví dụ APP_URL=https://ptht-gold.vercel.app/ npm test)
+const APP_URL = process.env.APP_URL || pathToFileURL(path.resolve(__dirname, '..', 'index.html')).href;
+const APP_ORIGIN = APP_URL.startsWith('file:') ? 'file:' : new URL(APP_URL).origin;
+/** Tài nguyên "ngoài" = khác nguồn với web (file:// thì mọi thứ không phải file:/data:) */
+const isExternal = url => !url.startsWith('data:') && (APP_ORIGIN === 'file:' ? !url.startsWith('file:') : !url.startsWith(APP_ORIGIN));
 
 // Mọi trang kiểm thử chạy ở cùng một giờ cố định (19:00 ngày 24/11/2026, giờ Việt Nam)
 // để kết quả không phụ thuộc vào lúc chạy. Truyền { now: null } để dùng giờ thật của máy.
@@ -43,7 +48,7 @@ async function newPage(browser, opts = {}) {
     page._external = [];
     page.on('console', m => { if (m.type() === 'error') page._errors.push(m.text()); });
     page.on('pageerror', e => page._errors.push('PAGEERROR ' + e.message));
-    page.on('request', r => { if (!r.url().startsWith('file:') && !r.url().startsWith('data:')) page._external.push(r.url()); });
+    page.on('request', r => { if (isExternal(r.url())) page._external.push(r.url()); });
     page.on('requestfailed', r => page._errors.push('FAILED ' + r.url()));
     return page;
 }

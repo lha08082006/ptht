@@ -37,6 +37,12 @@ node run.js quy-trinh dinh-muc
 
 Mỗi mục in ra một dòng `PASS` hoặc `FAIL` (kèm chi tiết khi sai), cuối cùng là tổng số mục đạt. Có mục sai thì lệnh kết thúc với mã lỗi 1.
 
+Kiểm thử thẳng trên trang đã deploy (thay vì file `index.html` trong máy), đặt biến môi trường `APP_URL`:
+
+```bash
+APP_URL=https://ptht-gold.vercel.app/ npm test
+```
+
 Muốn lưu ảnh chụp màn hình trong lúc chạy, đặt biến môi trường `SHOTS_DIR`:
 
 ```bash
