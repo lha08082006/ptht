@@ -76,9 +76,20 @@
 
     /** Một lịch đặt bàn giữ bàn trong khoảng 3 giờ quanh giờ hẹn (đủ cho một bữa nhậu) */
     const HOLD_MINUTES = 180;
+    /** Đưa đón: chỉ giao xe trong vòng 3 giờ trước giờ đón (xe không bị giữ quá sớm);
+        quá giờ đón hơn 1 giờ mà chưa có xe thì coi như lỡ hẹn, chỉ còn hủy */
+    const ASSIGN_LEAD_MINUTES = 180;
+    const PICKUP_GRACE_MINUTES = 60;
     const toMin = hm => {
         const [h, m] = String(hm || '00:00').split(':').map(Number);
         return (h || 0) * 60 + (m || 0);
+    };
+
+    /** Mốc thời gian (ms) → "17:30" nếu hôm nay, "17:30 ngày 25/11/2026" nếu ngày khác */
+    const clockLabel = ms => {
+        const d = new Date(ms);
+        const date = U.toISODate(d);
+        return U.pad2(d.getHours()) + ':' + U.pad2(d.getMinutes()) + (date === U.todayLocal() ? '' : ' ngày ' + U.fmtDate(date));
     };
 
     /** Làm tròn 3 chữ số thập phân (0,1 + 0,2 không thành 0,30000000000000004) */
@@ -92,6 +103,7 @@
     ];
 
     /* ---------- Lưu / đọc trình duyệt (có thể bị chặn ở chế độ ẩn danh) ---------- */
+    /** Bản đã lưu: { version, savedAt, seededOn, touched, db } — null nếu chưa có / hỏng / khác phiên bản */
     function readSaved() {
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
@@ -99,7 +111,7 @@
             const saved = JSON.parse(raw);
             if (!saved || saved.version !== STORAGE_VERSION || !saved.db) return null;
             if (!COLLECTIONS.every(key => Array.isArray(saved.db[key]))) return null;
-            return saved.db;
+            return saved;
         } catch (e) {
             return null;
         }
@@ -112,7 +124,10 @@
         clearTimeout(saveTimer);
         saveTimer = null;
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: STORAGE_VERSION, savedAt: new Date().toISOString(), db }));
+            store.savedAt = new Date().toISOString();
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                version: STORAGE_VERSION, savedAt: store.savedAt, seededOn: store.seededOn, touched: store.touched, db
+            }));
         } catch (e) {
             // Hết dung lượng hoặc trình duyệt chặn lưu: vẫn chạy trong phiên, nhưng phải báo cho người dùng biết
             if (!storageWarned && QN.ui) {
@@ -130,16 +145,42 @@
     const store = {
         db,
         STATUS,
+        clockLabel,
         DEFAULT_MIN_STOCK,
         PAY_METHODS,
         CUSTOMER_TIERS,
         restoredFromStorage: false,
+        /** Dữ liệu mẫu cũ (chưa ai sửa) vừa được tạo lại theo ngày hôm nay */
+        seedRefreshed: false,
+        /** Ngày tạo dữ liệu mẫu đang dùng; người dùng đã sửa dữ liệu chưa; lần lưu gần nhất (ISO) */
+        seededOn: '',
+        touched: false,
+        savedAt: '',
 
-        /** Nạp dữ liệu đã lưu; nếu chưa có (hoặc hỏng) thì tạo dữ liệu mẫu */
+        /**
+         * Nạp dữ liệu đã lưu; nếu chưa có (hoặc hỏng) thì tạo dữ liệu mẫu.
+         * Dữ liệu mẫu chưa ai sửa mà tạo từ hôm trước thì tạo lại theo hôm nay — nếu không, mở web
+         * hôm sau sẽ thấy doanh thu "hôm nay" trống, hóa đơn/phiếu bếp/chuyến xe của hôm qua còn treo.
+         * Dữ liệu người dùng đã thay đổi thì luôn giữ nguyên.
+         */
         init() {
             const saved = readSaved();
-            store.restoredFromStorage = !!saved;
-            replaceAll(saved || QN.createSeedData());
+            const today = U.todayLocal();
+            const staleSeed = !!saved && saved.touched === false && !!saved.seededOn && saved.seededOn !== today;
+            if (saved && !staleSeed) {
+                replaceAll(saved.db);
+                // Bản lưu từ phiên bản trước (chưa có cờ) coi như đã sửa để không bao giờ mất dữ liệu
+                store.touched = saved.touched !== false;
+                store.seededOn = saved.seededOn || '';
+                store.savedAt = saved.savedAt || '';
+            } else {
+                replaceAll(QN.createSeedData());
+                store.touched = false;
+                store.seededOn = today;
+                store.savedAt = '';
+            }
+            store.restoredFromStorage = !!saved && !staleSeed;
+            store.seedRefreshed = staleSeed;
             store.syncTableHolds();
         },
 
@@ -166,6 +207,12 @@
             saveTimer = setTimeout(writeNow, 150);
         },
 
+        /** Người dùng vừa thay đổi dữ liệu: đánh dấu "đã sửa" (không tự tạo lại dữ liệu mẫu nữa) rồi lưu */
+        commit() {
+            store.touched = true;
+            store.save();
+        },
+
         /** Ghi ngay (khi đóng / ẩn trang) */
         flush() {
             if (saveTimer) writeNow();
@@ -176,6 +223,9 @@
             try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* bỏ qua */ }
             replaceAll(QN.createSeedData());
             store.restoredFromStorage = false;
+            store.seedRefreshed = false;
+            store.touched = false;
+            store.seededOn = U.todayLocal();
             writeNow();
         },
 
@@ -530,12 +580,51 @@
             return store.activeTrips().find(t => Number(t.vehicleId) === Number(vehicleId)) || null;
         },
 
+        /**
+         * Khung giờ giao xe của một yêu cầu đưa đón (mốc thời gian, ms): từ 3 giờ trước giờ đón
+         * tới 1 giờ sau giờ đón. null nếu yêu cầu không có giờ đón.
+         */
+        deliveryWindow(req) {
+            const at = req && req.time ? new Date(req.time).getTime() : NaN;
+            if (!Number.isFinite(at)) return null;
+            return { at, from: at - ASSIGN_LEAD_MINUTES * 60000, until: at + PICKUP_GRACE_MINUTES * 60000 };
+        },
+
+        /** Yêu cầu chờ giao xe đã quá giờ đón hơn 1 giờ: lỡ hẹn, không giao xe nữa */
+        deliveryOverdue(req) {
+            const w = store.deliveryWindow(req);
+            return !!w && req.status === 'pending' && Date.now() > w.until;
+        },
+
+        /** Lý do chưa giao xe được (null nếu được): đã lỡ giờ đón, hoặc còn quá sớm so với giờ đón */
+        deliveryAssignBlock(req) {
+            const w = store.deliveryWindow(req);
+            if (!w) return null;
+            if (Date.now() > w.until) return 'Đã quá giờ đón hơn 1 giờ mà chưa có xe — hãy liên hệ khách rồi hủy yêu cầu này.';
+            if (Date.now() < w.from) return `Chưa đến lúc giao xe: chỉ giao xe trong vòng 3 giờ trước giờ đón (từ ${clockLabel(w.from)}) để xe không bị giữ quá sớm.`;
+            return null;
+        },
+
+        /** Yêu cầu chờ giao xe đã đến lúc phải giao (trong vòng 3 giờ trước giờ đón, chưa lỡ hẹn) */
+        deliveryDue() {
+            return db.deliveryReqs.filter(r => r.status === 'pending' && !store.deliveryAssignBlock(r));
+        },
+
+        /** Giờ đón ngắn gọn: "20:30" nếu hôm nay, "25/11 20:30" nếu ngày khác */
+        pickupLabel(req) {
+            if (!req || !req.time) return '—';
+            const date = req.time.slice(0, 10);
+            const time = req.time.slice(11, 16);
+            return date === U.todayLocal() ? time : U.fmtDateShort(date) + ' ' + time;
+        },
+
         /** Số việc cần xử lý ngay — hiển thị trên chuông */
         attention() {
             const kitchenNew = db.kitchenOrders.filter(k => k.status === 'new').length;
             const reservationsPending = db.reservations.filter(r => r.status === 'pending' && !store.reservationOverdue(r)).length;
             const lowStock = db.ingredients.filter(g => store.stockLevel(g) === 'low').length;
-            return { kitchenNew, reservationsPending, lowStock, total: kitchenNew + reservationsPending + lowStock };
+            const deliveryDue = store.deliveryDue().length;
+            return { kitchenNew, reservationsPending, lowStock, deliveryDue, total: kitchenNew + reservationsPending + lowStock + deliveryDue };
         },
 
         /** Danh sách việc cần xử lý (trang Tổng quan và bảng của chuông) */
@@ -549,6 +638,8 @@
             if (pendingRes.length) items.push({ urgent: true, icon: 'fa-calendar-check', tone: 'warning', page: 'reservations', text: `${pendingRes.length} đặt bàn chờ xác nhận` });
             const low = db.ingredients.filter(g => store.stockLevel(g) === 'low');
             if (low.length) items.push({ urgent: true, icon: 'fa-triangle-exclamation', tone: 'danger', page: 'ingredients', text: `${low.length} nguyên liệu sắp hết: ${low.map(g => `${g.name} (nên nhập thêm ${U.fmtNumber(store.reorderQty(g))} ${g.unit})`).join(', ')}` });
+            const due = store.deliveryDue();
+            if (due.length) items.push({ urgent: true, icon: 'fa-car-side', tone: 'warning', page: 'delivery', text: `${due.length} yêu cầu đưa đón cần giao xe (đón ${due.slice().sort((a, b) => String(a.time).localeCompare(String(b.time))).map(r => store.pickupLabel(r)).join(', ')})` });
             const soldOut = db.foods.filter(f => f.status === 'available' && store.portionsLeft(f) === 0);
             if (soldOut.length) items.push({ urgent: false, icon: 'fa-bowl-food', tone: 'warning', page: 'foods', text: `${soldOut.length} món hết nguyên liệu, chưa bán được: ${soldOut.map(f => f.name).join(', ')}` });
             const late = db.reservations.filter(r => r.status === 'confirmed' && r.date === today && r.time <= now && !store.reservationOverdue(r));
@@ -559,6 +650,8 @@
             if (pendingInv.length) items.push({ urgent: false, icon: 'fa-hourglass-half', tone: 'info', page: 'invoices', text: `${pendingInv.length} hóa đơn chờ thanh toán` });
             const trips = store.activeTrips();
             if (trips.length) items.push({ urgent: false, icon: 'fa-van-shuttle', tone: 'info', page: 'delivery', text: `${trips.length} chuyến xe đang đón khách` });
+            const missed = db.deliveryReqs.filter(store.deliveryOverdue);
+            if (missed.length) items.push({ urgent: false, icon: 'fa-clock-rotate-left', tone: 'danger', page: 'delivery', text: `${missed.length} yêu cầu đưa đón đã quá giờ đón mà chưa có xe — liên hệ khách rồi hủy` });
             return items;
         },
 

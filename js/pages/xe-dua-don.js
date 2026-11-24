@@ -55,38 +55,64 @@
     });
 
     /* ---------------- YÊU CẦU ĐƯA ĐÓN & CHUYẾN XE ---------------- */
+    /** Ghi chú dưới giờ đón của yêu cầu đang chờ: từ mấy giờ mới giao xe được, hoặc đang trễ bao lâu */
+    function pendingHint(d) {
+        const w = S.deliveryWindow(d);
+        if (!w || d.status !== 'pending' || S.deliveryOverdue(d)) return '';
+        const now = Date.now();
+        if (now < w.from) return html`<span class="t-sub">Giao xe từ ${S.clockLabel(w.from)}</span>`;
+        if (now > w.at) return html`<span class="t-sub text-danger">Trễ ${Math.round((now - w.at) / 60000)} phút</span>`;
+        return '';
+    }
+
     function renderDelivery() {
-        UI.renderRows('deliveryTableBody', S.db.deliveryReqs.map((d, i) => html`
+        const today = U.todayLocal();
+        UI.renderRows('deliveryTableBody', S.db.deliveryReqs.map((d, i) => {
+            const who = S.customerName(d.custId);
+            // Quá giờ đón hơn 1 giờ mà chưa có xe: lỡ hẹn, chỉ còn hủy để đóng yêu cầu
+            const missed = S.deliveryOverdue(d);
+            const cancel = UI.iconButton({ action: 'delivery-cancel', icon: 'fa-ban', label: `Hủy yêu cầu đưa đón của ${who}${missed ? ' (lỡ giờ đón)' : ''}`, tone: 'danger', data: { id: d.id } });
+            const actions = d.status !== 'pending' ? '' : missed ? cancel
+                : html`<button type="button" class="btn btn--secondary btn--sm" data-action="delivery-assign" data-id="${d.id}"><i class="fas fa-car" aria-hidden="true"></i>Giao xe</button>${cancel}`;
+            return html`
             <tr>
                 <td>${i + 1}</td>
-                <td><span class="t-strong">${S.customerName(d.custId)}</span>${d.note ? html`<span class="t-sub">${d.note}</span>` : ''}</td>
+                <td><span class="t-strong">${who}</span>${d.note ? html`<span class="t-sub">${d.note}</span>` : ''}</td>
                 <td>${d.pickup}</td>
                 <td>${d.dropoff}</td>
-                <td class="nowrap">${d.time ? U.fmtDateTime(d.time) : html`<span class="text-muted">—</span>`}</td>
+                <td class="nowrap">${d.time ? U.fmtDateTime(d.time) : html`<span class="text-muted">—</span>`}${pendingHint(d)}</td>
                 <td class="num">${d.guests}</td>
-                <td>${UI.statusBadge('delivery', d.status)}</td>
-                <td class="num"><div class="cell-actions">
-                    ${d.status === 'pending'
-                        ? html`<button type="button" class="btn btn--secondary btn--sm" data-action="delivery-assign" data-id="${d.id}"><i class="fas fa-car" aria-hidden="true"></i>Giao xe</button>
-                            ${UI.iconButton({ action: 'delivery-cancel', icon: 'fa-ban', label: 'Hủy yêu cầu đưa đón của ' + S.customerName(d.custId), tone: 'danger', data: { id: d.id } })}`
-                        : html`<span class="text-muted">—</span>`}
-                </div></td>
-            </tr>`), { empty: 'Chưa có yêu cầu đưa đón nào' });
+                <td>${missed ? html`${UI.badge('Quá giờ đón', 'danger')}<span class="t-sub">Chưa có xe</span>` : UI.statusBadge('delivery', d.status)}</td>
+                <td class="num"><div class="cell-actions">${actions || html`<span class="text-muted">—</span>`}</div></td>
+            </tr>`;
+        }), { empty: 'Chưa có yêu cầu đưa đón nào' });
 
-        UI.renderRows('tripTableBody', S.db.trips.map((t, i) => html`
+        UI.renderRows('tripTableBody', S.db.trips.map((t, i) => {
+            // Chuyến chỉ lưu giờ xuất phát; ngày lấy theo yêu cầu đưa đón (ghi rõ khi không phải hôm nay)
+            const req = t.reqId ? S.get('deliveryReqs', t.reqId) : null;
+            const date = req && req.time ? req.time.slice(0, 10) : '';
+            return html`
             <tr>
                 <td>${i + 1}</td>
                 <td class="t-strong">${S.customerName(t.custId)}</td>
                 <td class="t-code">${S.vehiclePlate(t.vehicleId)}</td>
                 <td>${S.employeeName(t.driverId)}</td>
-                <td class="nowrap">${t.departure}${t.completedAt ? html`<span class="t-sub">Xong lúc ${U.fmtDateTime(t.completedAt)}</span>` : ''}</td>
+                <td class="nowrap">${t.departure}${date && date !== today ? html`<span class="t-sub">Ngày ${U.fmtDate(date)}</span>` : ''}${t.completedAt ? html`<span class="t-sub">Xong lúc ${U.fmtDateTime(t.completedAt)}</span>` : ''}</td>
                 <td>${UI.statusBadge('trip', t.status)}</td>
                 <td class="num"><div class="cell-actions">
                     ${t.status === 'Đang đón'
                         ? html`<button type="button" class="btn btn--ghost btn--sm" data-action="trip-complete" data-id="${t.id}"><i class="fas fa-flag-checkered" aria-hidden="true"></i>Hoàn tất</button>`
                         : html`<span class="text-muted">—</span>`}
                 </div></td>
-            </tr>`), { empty: 'Chưa có chuyến xe nào' });
+            </tr>`;
+        }), { empty: 'Chưa có chuyến xe nào' });
+    }
+
+    /** Giờ đón gợi ý khi tạo yêu cầu: khoảng 30 phút nữa, làm tròn lên 5 phút */
+    function suggestedPickup() {
+        const t = new Date(Date.now() + 30 * 60000);
+        t.setMinutes(Math.ceil(t.getMinutes() / 5) * 5, 0, 0);
+        return U.toISODate(t) + 'T' + U.pad2(t.getHours()) + ':' + U.pad2(t.getMinutes());
     }
 
     QN.actions['delivery-add'] = () => {
@@ -95,6 +121,7 @@
         V.clear(form);
         UI.fillSelect('delCust', S.db.customers.map(c => ({ value: c.id, label: `${c.name} · ${c.phone}` })), { placeholder: '— Chọn khách hàng —', value: '' });
         U.byId('delTime').min = U.todayLocal() + 'T00:00';
+        U.byId('delTime').value = suggestedPickup();
         UI.openModal('deliveryReqModal', { title: 'Tạo yêu cầu đưa đón' });
     };
 
@@ -113,7 +140,7 @@
             ['delCust', v.custId, x => (x ? null : 'Vui lòng chọn khách hàng')],
             ['delPickup', v.pickup, R.required('Vui lòng nhập điểm đón'), R.maxLength(150)],
             ['delDropoff', v.dropoff, R.maxLength(150)],
-            ['delTime', v.time, t => (t && t < U.todayLocal() + 'T' + U.nowTime() ? 'Thời gian đón đã qua' : null)],
+            ['delTime', v.time, R.required('Vui lòng chọn thời gian đón'), t => (t < U.todayLocal() + 'T' + U.nowTime() ? 'Thời gian đón đã qua' : null)],
             ['delGuests', v.guests, R.required('Vui lòng nhập số người'), R.integer({ min: 1, max: 50 }),
                 g => (maxSeats && Number(g) > maxSeats ? `Xe lớn nhất chỉ có ${maxSeats} chỗ` : null)],
             ['delNote', v.note, R.maxLength(200)]
@@ -131,6 +158,13 @@
     QN.actions['delivery-assign'] = d => {
         const req = S.get('deliveryReqs', d.id);
         if (!req || req.status !== 'pending') return;
+        // Chỉ giao xe khi gần đến giờ đón (xe không bị giữ cả ngày) và chưa lỡ hẹn
+        const block = S.deliveryAssignBlock(req);
+        if (block) {
+            UI.toast(block, 'warning');
+            renderDelivery();
+            return;
+        }
         // Xe sẵn sàng (không đang chạy chuyến nào) nhỏ nhất mà vẫn đủ chỗ
         const busyVehicles = new Set(S.activeTrips().map(t => Number(t.vehicleId)));
         const vehicle = S.db.vehicles
