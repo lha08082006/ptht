@@ -65,7 +65,7 @@ module.exports = async function dinhMuc(browser, check) {
     check('Giá vốn món mới tính đúng: 0,2 kg đậu + 2 quả trứng = 16.000đ', (await p.textContent('#foodRecipeSummary')).includes('16.000đ'));
     await submit(p, 'foodModal');
     const newFood = await state(p, () => QN.store.db.foods.find(f => f.name === 'Gỏi đậu trứng non'));
-    check('Lưu món mới kèm định mức', !await isOpen(p, 'foodModal') && newFood && JSON.stringify(newFood.recipe) === JSON.stringify([{ ingredientId: 11, qty: 0.2 }, { ingredientId: 12, qty: 2 }]), newFood);
+    check('Lưu món mới kèm định mức', !await isOpen(p, 'foodModal') && newFood && JSON.stringify(newFood.recipe) === JSON.stringify([{ ingredientId: 11, qty: 0.2, waste: 0 }, { ingredientId: 12, qty: 2, waste: 0 }]), newFood);
     await shot(p, 'dm-bang-mon', { fullPage: true });
 
     /* ---------- NGUYÊN LIỆU ĐANG DÙNG TRONG ĐỊNH MỨC ---------- */
@@ -194,7 +194,7 @@ module.exports = async function dinhMuc(browser, check) {
     const seed = await state(fresh, () => {
         const S = QN.store;
         const soldUsage = new Map();
-        S.db.invoices.forEach(inv => inv.items.forEach(it => S.recipeOf(S.get('foods', it.foodId)).forEach(l => soldUsage.set(l.ingredientId, (soldUsage.get(l.ingredientId) || 0) + l.qty * it.qty))));
+        S.db.invoices.forEach(inv => inv.items.forEach(it => S.recipeOf(S.get('foods', it.foodId)).forEach(l => soldUsage.set(l.ingredientId, (soldUsage.get(l.ingredientId) || 0) + S.grossQty(l) * it.qty))));
         const autoUsage = new Map();
         S.db.receipts.filter(r => r.auto).forEach(r => autoUsage.set(r.ingredientId, (autoUsage.get(r.ingredientId) || 0) + r.qty));
         return {
@@ -203,7 +203,7 @@ module.exports = async function dinhMuc(browser, check) {
             beer: S.get('ingredients', 9).unit
         };
     });
-    check('Dữ liệu mẫu: phiếu xuất bán khớp đúng định mức × số phần đã bán', seed.match && seed.costs && seed.beer === 'lon', seed);
+    check('Dữ liệu mẫu: phiếu xuất bán khớp đúng định mức gộp × số phần đã bán', seed.match && seed.costs && seed.beer === 'lon', seed);
 
     const errors = [p, fresh].flatMap(x => x._errors);
     check('Không có lỗi console', errors.length === 0, errors);
