@@ -18,6 +18,7 @@ Hệ thống được thiết kế theo luồng quy trình thực tế từ ti�
 - **Việc cần xử lý** (trên trang Tổng quan và ở nút chuông): đơn bếp mới, đặt bàn chờ xác nhận, nguyên liệu sắp hết, khách đặt sắp đến, hóa đơn chờ thanh toán, chuyến xe đang chạy — bấm vào là mở đúng trang.
 - **Lưu dữ liệu ngay trong trình duyệt:** tải lại trang (F5) hay tắt mở lại vẫn còn dữ liệu và không bị đăng xuất; nút **Khôi phục dữ liệu mẫu** để làm lại từ đầu.
 - **Tìm kiếm không cần gõ dấu** ở mọi danh sách (khách hàng, nhân viên, đặt bàn, món, hóa đơn, voucher, nguyên liệu, nhà cung cấp, phiếu kho, xe).
+- **Dữ liệu dùng lâu không làm chậm web:** bảng dài (hóa đơn, phiếu kho…) hiện 50 dòng đầu kèm nút **Xem thêm**; bếp chỉ hiện đơn hoàn thành trong ngày; lịch đặt bàn đã qua xuống cuối danh sách và gắn nhãn *Quá hạn*.
 - **Điện thoại:** menu trượt, bảng tự cuộn ngang, thanh giỏ hàng nổi ở trang Gọi món.
 
 ### 1. Quản lý khách hàng
@@ -27,8 +28,8 @@ Hệ thống được thiết kế theo luồng quy trình thực tế từ ti�
 ### 2. Quản lý bán hàng
 - **Đặt bàn:** Tạo đặt bàn theo ngày giờ và số khách, xác nhận (tự gán bàn trống nhỏ nhất đủ chỗ), hủy; **check-in khi khách đến** (bàn chuyển *Đang dùng*, mở luôn trang Gọi món với bàn đã chọn sẵn); **mã QR thật**, quét được bằng điện thoại; lọc theo trạng thái (Chờ xác nhận / Đã xác nhận / Đã đến / Đã hủy).
 - **Quản lý bàn:** Sơ đồ bàn theo khu (Tầng 1, Tầng 2, Sân vườn) với trạng thái Trống / Đã đặt / Đang dùng, ghi rõ bàn đang giữ cho lịch đặt nào.
-- **Món ăn / Thực đơn:** Cập nhật giá bán, danh mục, trạng thái còn món / hết món.
-- **Gọi món:** Chọn bàn, khách, nhân viên phục vụ, voucher; thêm món vào đơn và gửi xuống bếp, đồng thời tạo hóa đơn. **Gọi thêm món** cho bàn đang có hóa đơn: món mới được cộng vào chính hóa đơn đó (không tách hóa đơn), bếp nhận phiếu có nhãn *Gọi thêm*. Gọi món ở bàn đang giữ cho lịch đặt hôm nay → hỏi có phải khách đã đặt không để check-in luôn.
+- **Món ăn / Thực đơn:** Cập nhật giá bán, danh mục, trạng thái còn món / hết món; **định mức nguyên liệu cho 1 phần** (ví dụ nầm nướng: 0,3 kg nầm sữa bò + 0,05 kg rau), từ đó tự tính **giá vốn, lãi gộp** và **số phần còn làm được** theo tồn kho (ghi rõ nguyên liệu đang giới hạn).
+- **Gọi món:** Chọn bàn, khách, nhân viên phục vụ, voucher; thêm món vào đơn và gửi xuống bếp, đồng thời tạo hóa đơn. Thẻ món báo *Còn N phần* / *Hết nguyên liệu* theo định mức, không cho gọi vượt tồn kho; **gửi đơn là tự trừ kho** theo định mức (sinh phiếu xuất bán gắn mã hóa đơn) và cảnh báo nguyên liệu vừa chạm định mức tối thiểu. **Gọi thêm món** cho bàn đang có hóa đơn: món mới được cộng vào chính hóa đơn đó (không tách hóa đơn), bếp nhận phiếu có nhãn *Gọi thêm*. Gọi món ở bàn đang giữ cho lịch đặt hôm nay → hỏi có phải khách đã đặt không để check-in luôn.
 - **Hóa đơn & thanh toán:** Tự động tính tiền, áp dụng voucher, xem chi tiết hóa đơn, thanh toán bằng Tiền mặt / Chuyển khoản / VNPay / MoMo (lưu mã giao dịch), **in hóa đơn** (chỉ in tờ hóa đơn, không in menu).
 - **Voucher:** Quản lý mã giảm giá theo % và số lượt còn lại.
 
@@ -36,18 +37,18 @@ Hệ thống được thiết kế theo luồng quy trình thực tế từ ti�
 - **Công việc bếp (Kanban):** Đơn mới → Đang chế biến → Hoàn thành.
 
 ### 4. Quản lý kho hàng
-- **Nguyên liệu:** Đơn vị tính, đơn giá, nhà cung cấp, tồn kho và **định mức tồn tối thiểu riêng từng nguyên liệu** (5 kg tôm khác 10 thùng bia): *Sắp hết* khi tồn ≤ định mức, *Trung bình* khi tồn ≤ 2 × định mức.
+- **Nguyên liệu:** Đơn vị tính, đơn giá, nhà cung cấp, tồn kho và **định mức tồn tối thiểu riêng từng nguyên liệu** (5 kg tôm khác 120 lon bia): *Sắp hết* khi tồn ≤ định mức, *Trung bình* khi tồn ≤ 2 × định mức; gợi ý số lượng nên nhập thêm; ghi rõ nguyên liệu đang dùng cho bao nhiêu món.
 - **Nhà cung cấp:** Đối tác cung ứng thực phẩm tươi sống, bia, nước ngọt.
-- **Nhập / xuất kho:** Lập phiếu nhập hoặc xuất; tồn kho chỉ thay đổi qua phiếu (tồn = tổng nhập − tổng xuất).
+- **Nhập / xuất kho:** Lập phiếu nhập hoặc xuất (nhận số lẻ như 2,5 kg, có ô ghi chú); tồn kho chỉ thay đổi qua phiếu (tồn = tổng nhập − tổng xuất). Lọc theo *Nhập kho* / *Xuất tay* (hủy hàng, dùng nội bộ) / *Xuất bán* (tự động theo định mức khi gửi bếp).
 
 ### 5. Xe đưa đón khách
 - **Quản lý xe:** Biển số, loại xe, số chỗ, trạng thái.
 - **Yêu cầu đưa đón:** Tạo yêu cầu, giao xe (xe sẵn sàng nhỏ nhất đủ chỗ + tài xế đang rảnh), theo dõi chuyến xe, **hoàn tất chuyến** (xe về *Sẵn sàng*, tài xế rảnh để nhận chuyến khác).
 
 ### 6. Báo cáo - Thống kê
-- **Báo cáo tài chính:** Doanh thu theo khoảng ngày, **tính theo ngày thanh toán** (hóa đơn lập hôm qua nhưng trả hôm nay được tính vào hôm nay; bảng ghi cả Ngày lập và Ngày TT), tỷ lệ thanh toán, phương thức thanh toán, nguyên liệu tiêu thụ (theo phiếu xuất kho), chi tiết hóa đơn.
-- **Báo cáo món bán chạy:** Xếp hạng theo số phần, doanh thu theo danh mục và theo món.
-- **Báo cáo hàng hóa & tồn kho:** Tồn kho so với định mức của từng nguyên liệu, giá trị tồn kho, lịch sử nhập / xuất, chi tiết tồn từng nguyên liệu.
+- **Báo cáo tài chính:** Doanh thu theo khoảng ngày, **tính theo ngày thanh toán** (hóa đơn lập hôm qua nhưng trả hôm nay được tính vào hôm nay; bảng ghi cả Ngày lập và Ngày TT); **lãi gộp = doanh thu − giá vốn** (giá vốn chốt lúc bán); biểu đồ tự gom theo ngày (≤ 31 ngày), tuần hoặc tháng khi chọn khoảng dài; tỷ lệ thanh toán, phương thức thanh toán, nguyên liệu tiêu thụ (theo phiếu xuất kho), chi tiết hóa đơn.
+- **Báo cáo món bán chạy:** Xếp hạng theo số phần, lãi gộp từng món, doanh thu theo danh mục và theo món.
+- **Báo cáo hàng hóa & tồn kho:** Tồn kho so với định mức của từng nguyên liệu, giá trị tồn kho, lịch sử nhập / xuất, chi tiết tồn từng nguyên liệu kèm gợi ý số lượng cần nhập.
 
 ---
 
@@ -123,7 +124,7 @@ ptht/
 
 ## 🧪 Kiểm Thử Tự Động
 
-Thư mục `tests/` chứa bộ kiểm thử mở thẳng `index.html` bằng trình duyệt tự động, bấm như người dùng thật và kiểm tra kết quả (đăng nhập, 18 trang, thêm / sửa / xóa, gọi món → bếp → thanh toán, kho, xe, báo cáo, lưu dữ liệu, check-in, mã QR, in hóa đơn, giao diện điện thoại…). Chỉ cần khi muốn kiểm tra lại sau khi sửa code — chạy web thì không cần:
+Thư mục `tests/` chứa bộ kiểm thử mở thẳng `index.html` bằng trình duyệt tự động, bấm như người dùng thật và kiểm tra kết quả: đăng nhập, 18 trang, thêm / sửa / xóa, một vòng quy trình đầy đủ (đặt bàn → check-in → gọi món → bếp → thanh toán → báo cáo → xe → nhập kho), định mức món và trừ kho, lưu dữ liệu, mã QR, in hóa đơn, dữ liệu lớn 90 ngày, giao diện điện thoại… Chỉ cần khi muốn kiểm tra lại sau khi sửa code — chạy web thì không cần:
 
 ```bash
 cd tests
@@ -143,6 +144,8 @@ Chi tiết từng bộ kiểm thử: xem [`tests/README.md`](tests/README.md).
 - Không đặt bàn cho ngày giờ đã qua; số khách không vượt sức chứa của bàn; chỉ check-in được vào đúng ngày đặt.
 - Trạng thái bàn khớp với dữ liệu: gọi món / check-in → *Đang dùng*; xác nhận đặt bàn → *Đã đặt*; thanh toán xong chỉ trả bàn khi bàn không còn hóa đơn chờ — về *Đã đặt* nếu bàn còn lịch giữ chỗ, không thì về *Trống*.
 - Mỗi bàn chỉ có một hóa đơn đang mở: gọi thêm món được cộng vào hóa đơn đó, tổng tiền và giảm giá voucher tính lại theo toàn bộ món.
+- Gửi đơn xuống bếp trừ kho theo định mức của từng món; không gửi được nếu kho không đủ; giá vốn từng món được chốt lúc bán (đổi định mức hay giá nhập sau này không làm sai lãi của hóa đơn cũ).
+- Không xóa được và không đổi được đơn vị tính của nguyên liệu đang có trong định mức món; lượng định mức, định mức tồn và số lượng phiếu kho nhận tối đa 3 chữ số thập phân.
 - Mỗi xe và mỗi tài xế chỉ chạy một chuyến tại một thời điểm; xe đang chạy chuyến không đổi được trạng thái cho tới khi hoàn tất chuyến.
 - Doanh thu ghi nhận theo ngày thanh toán; hóa đơn chưa thanh toán chỉ hiện ở mục *Chờ thanh toán*.
 - Không xóa được bản ghi đang được dùng (ví dụ: khách hàng đã có hóa đơn, nguyên liệu đã có phiếu kho); hệ thống báo rõ lý do.
