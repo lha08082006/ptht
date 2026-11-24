@@ -262,12 +262,13 @@
     });
 
     /* ---------------- QUẢN LÝ BÀN ---------------- */
-    const NEXT_TABLE_STATUS = { available: 'reserved', reserved: 'occupied', occupied: 'available' };
-
     function tableCard(t) {
         const st = S.STATUS.table[t.status];
         const hold = S.holdsOfTable(t.id)[0];
-        const holdText = hold ? `Giữ cho ${U.code('RES', hold.id)} · ${hold.date === U.todayLocal() ? hold.time : U.fmtDateShort(hold.date) + ' ' + hold.time}` : '';
+        // Lịch hôm nay: bàn đang được giữ; lịch ngày khác: chỉ ghi chú, bàn vẫn dùng được hôm nay
+        const holdText = !hold ? '' : (hold.date === U.todayLocal()
+            ? `Giữ cho ${U.code('RES', hold.id)} · ${hold.time}`
+            : `Lịch đặt ${U.code('RES', hold.id)} · ${U.fmtDateShort(hold.date)} ${hold.time}`);
         return html`
             <button type="button" class="table-card table-card--${t.status}" data-action="table-toggle" data-id="${t.id}"
                 aria-label="${t.name}, ${t.seats} chỗ, ${t.zone}: ${st.label}${holdText ? '. ' + holdText : ''}. Bấm để đổi trạng thái">
@@ -297,11 +298,30 @@
         }).join('');
     }
 
+    /**
+     * Bấm vào bàn: Trống → Đang dùng (khách vào ngồi); Đang dùng → Trống (khách về, còn lịch hôm nay thì "Đã đặt").
+     * "Đã đặt" do lịch đặt bàn quyết định nên bấm vào sẽ hỏi check-in khách của lịch đó.
+     */
     QN.actions['table-toggle'] = async d => {
         const t = S.get('tables', d.id);
         if (!t) return;
-        const next = NEXT_TABLE_STATUS[t.status] || 'available';
-        if (next === 'available') {
+        if (t.status === 'reserved') {
+            const hold = S.todayHold(t.id);
+            if (hold) {
+                const ok = await UI.confirm({
+                    title: `${t.name} đang giữ cho ${U.code('RES', hold.id)}`,
+                    message: `${hold.name} · ${hold.time} · ${hold.guests} người. Khách của lịch này đã đến?`,
+                    confirmText: 'Check-in khách',
+                    cancelText: 'Để sau',
+                    tone: 'info',
+                    icon: 'fa-user-check'
+                });
+                if (ok) await checkIn(hold);
+                return;
+            }
+        }
+        const next = t.status === 'occupied' ? (S.todayHold(t.id) ? 'reserved' : 'available') : 'occupied';
+        if (next !== 'occupied') {
             const pending = S.pendingInvoicesOfTable(t.id);
             if (pending.length) {
                 const ok = await UI.confirm({
@@ -324,10 +344,10 @@
     let reservationFilter = 'all';
     const val = id => U.byId(id).value;
 
-    /** Bàn trống nhỏ nhất mà vẫn đủ chỗ */
-    function pickTable(guests) {
+    /** Bàn nhỏ nhất vẫn đủ chỗ và không trùng lịch đặt khác vào ngày giờ đó */
+    function pickTable(r) {
         return S.db.tables
-            .filter(t => t.status === 'available' && t.seats >= guests)
+            .filter(t => !S.tableBlockReason(t, { date: r.date, time: r.time, guests: r.guests, exceptId: r.id }))
             .sort((a, b) => a.seats - b.seats || a.id - b.id)[0] || null;
     }
 
@@ -364,8 +384,8 @@
 
         UI.renderRows('reservationTableBody', list.map(r => {
             const code = U.code('RES', r.id);
-            // Lịch đã qua ngày mà khách chưa đến: không xác nhận / check-in được nữa, chỉ còn hủy để đóng lại
-            const overdue = past(r) && (r.status === 'pending' || r.status === 'confirmed');
+            // Lịch đã qua ngày (hoặc quá giờ hẹn 3 tiếng) mà khách chưa đến: chỉ còn hủy để đóng lại
+            const overdue = S.reservationOverdue(r);
             const actions = overdue ? [
                 UI.iconButton({ action: 'reservation-cancel', icon: 'fa-ban', label: 'Hủy ' + code + ' (khách không đến)', tone: 'danger', data: { id: r.id } })
             ] : [
@@ -390,16 +410,17 @@
             : { empty: reservationFilter === 'all' ? 'Chưa có đặt bàn nào' : 'Không có đặt bàn ở trạng thái này' });
     }
 
+    /** Danh sách bàn trong form đặt bàn: đủ chỗ và rảnh vào đúng ngày giờ khách đặt */
     function refreshReservationTables() {
-        const guests = Number(val('resGuests')) || 0;
+        const slot = { date: val('resDate'), time: val('resTime'), guests: Number(val('resGuests')) || 0 };
         const options = S.db.tables
-            .filter(t => t.status === 'available' && (!guests || t.seats >= guests))
+            .filter(t => (!slot.date || !slot.time) ? (!slot.guests || t.seats >= slot.guests) : !S.tableBlockReason(t, slot))
             .sort((a, b) => a.seats - b.seats || a.id - b.id)
             .map(t => ({ value: t.id, label: `${t.name} · ${t.seats} chỗ · ${t.zone}` }));
         UI.fillSelect('resTable', options, { placeholder: 'Tự động chọn khi xác nhận' });
         UI.setText('resTableHint', options.length
-            ? 'Chỉ hiện bàn đang trống và đủ chỗ.'
-            : 'Hiện không có bàn trống đủ chỗ — hệ thống sẽ gán bàn khi xác nhận.');
+            ? 'Chỉ hiện bàn đủ chỗ và không trùng lịch đặt khác trong khoảng 3 giờ quanh giờ này.'
+            : 'Không còn bàn đủ chỗ vào giờ này — hãy gợi ý khách đổi giờ, hoặc để hệ thống gán khi xác nhận.');
     }
 
     /** Khách đặt bàn đã đến: đặt bàn → "Đã đến", bàn → "Đang dùng" */
@@ -428,7 +449,8 @@
             icon: 'fa-utensils'
         });
         if (go) {
-            QN.orders.preselectTable(table.id);
+            const customer = S.db.customers.find(c => c.phone === r.phone);
+            QN.orders.preselectTable(table.id, customer ? customer.id : 0);
             QN.app.navigateTo('orders');
         }
         return true;
@@ -475,8 +497,7 @@
             ['resGuests', v.guests, R.required('Vui lòng nhập số người'), R.integer({ min: 1 }),
                 g => (Number(g) > maxSeats ? `Bàn lớn nhất chỉ có ${maxSeats} chỗ` : null)],
             ['resTable', v.tableId,
-                () => (table && table.status !== 'available' ? `${table.name} không còn trống` : null),
-                () => (table && Number(v.guests) > table.seats ? `${table.name} chỉ có ${table.seats} chỗ` : null)],
+                () => (table && v.date && v.time ? S.tableBlockReason(table, { date: v.date, time: v.time, guests: Number(v.guests) || 0 }) : null)],
             ['resNote', v.note, R.maxLength(200)]
         ]);
         if (V.show(form, errors)) return;
@@ -498,21 +519,23 @@
         const code = U.code('RES', r.id);
         let table = r.tableId ? S.get('tables', r.tableId) : null;
         let movedFrom = null;
-        if (table && (table.status !== 'available' || table.seats < r.guests)) {
+        if (table && S.tableBlockReason(table, { date: r.date, time: r.time, guests: r.guests, exceptId: r.id })) {
             movedFrom = table;
             table = null;
         }
-        if (!table) table = pickTable(r.guests);
+        if (!table) table = pickTable(r);
         if (!table) {
-            UI.toast(`Không còn bàn trống đủ ${r.guests} chỗ. Hãy gợi ý khách đổi thời gian.`, 'error');
+            UI.toast(`Không còn bàn đủ ${r.guests} chỗ rảnh vào ${U.fmtDateTime(r.date, r.time)}. Hãy gợi ý khách đổi giờ.`, 'error');
             return;
         }
         r.tableId = table.id;
         r.status = 'confirmed';
-        table.status = 'reserved';
+        // Chỉ lịch của hôm nay mới làm bàn hiện "Đã đặt"; lịch ngày khác giữ chỗ trên lịch, bàn hôm nay vẫn dùng được
+        if (table.status === 'available' && S.todayHold(table.id)) table.status = 'reserved';
+        const when = r.date === U.todayLocal() ? `hôm nay ${r.time}` : U.fmtDateTime(r.date, r.time);
         UI.toast(movedFrom
-            ? `${movedFrom.name} không còn trống — đã xác nhận ${code} và chuyển sang ${table.name}`
-            : `Đã xác nhận ${code} — ${table.name}`, 'success');
+            ? `${movedFrom.name} không nhận được (${S.tableBlockReason(movedFrom, { date: r.date, time: r.time, guests: r.guests, exceptId: r.id })}) — đã xác nhận ${code} và chuyển sang ${table.name} (${when})`
+            : `Đã xác nhận ${code} — ${table.name}, ${when}`, 'success');
         UI.keepFocus(renderReservations);
         QN.app.changed();
     };
@@ -534,8 +557,8 @@
         r.status = 'cancelled';
         if (wasConfirmed && r.tableId) {
             const t = S.get('tables', r.tableId);
-            // Chỉ trả bàn khi bàn đang được giữ và không còn đặt bàn nào khác giữ nó
-            if (t && t.status === 'reserved' && !S.holdsOfTable(t.id).length) t.status = 'available';
+            // Bàn đang "Đã đặt" vì lịch này: còn lịch khác hôm nay thì vẫn "Đã đặt", không thì "Trống"
+            if (t && t.status === 'reserved') S.freeTable(t);
         }
         UI.toast(`Đã hủy đặt bàn ${code}`, 'success');
         UI.keepFocus(renderReservations);
@@ -567,6 +590,8 @@
         render: renderReservations,
         init() {
             U.byId('resGuests').addEventListener('input', refreshReservationTables);
+            U.byId('resDate').addEventListener('change', refreshReservationTables);
+            U.byId('resTime').addEventListener('change', refreshReservationTables);
         }
     };
 })(window.QN);

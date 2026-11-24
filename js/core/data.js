@@ -247,7 +247,8 @@
         invoices.filter(i => i.status === 'pending').forEach(i => {
             tables.find(t => t.id === i.tableId).status = 'occupied';
         });
-        reservations.filter(r => r.status === 'confirmed' && r.tableId).forEach(r => {
+        // Chỉ lịch đặt của hôm nay làm bàn "Đã đặt"; lịch ngày khác chỉ là ghi chú trên sơ đồ bàn
+        reservations.filter(r => r.status === 'confirmed' && r.tableId && r.date === today).forEach(r => {
             const t = tables.find(x => x.id === r.tableId);
             if (t.status === 'available') t.status = 'reserved';
         });

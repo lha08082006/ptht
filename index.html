@@ -10,11 +10,11 @@
     <link rel="stylesheet" href="assets/fonts/be-vietnam-pro.css">
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/fontawesome.min.css">
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/solid.min.css">
-    <link rel="stylesheet" href="css/tokens.css?v=14">
-    <link rel="stylesheet" href="css/base.css?v=14">
-    <link rel="stylesheet" href="css/layout.css?v=14">
-    <link rel="stylesheet" href="css/components.css?v=14">
-    <link rel="stylesheet" href="css/pages.css?v=14">
+    <link rel="stylesheet" href="css/tokens.css?v=15">
+    <link rel="stylesheet" href="css/base.css?v=15">
+    <link rel="stylesheet" href="css/layout.css?v=15">
+    <link rel="stylesheet" href="css/components.css?v=15">
+    <link rel="stylesheet" href="css/pages.css?v=15">
 </head>
 <body>
 
@@ -45,7 +45,6 @@
             </div>
             <div class="login__row">
                 <label class="check"><input type="checkbox" id="rememberMe"> Ghi nhớ đăng nhập</label>
-                <button type="button" class="login__link" data-action="forgot-password">Quên mật khẩu?</button>
             </div>
             <button type="submit" class="btn btn--primary btn--block btn--lg"><i class="fas fa-right-to-bracket" aria-hidden="true"></i>Đăng nhập</button>
             <p class="login__hint">Tài khoản dùng thử: <strong>admin</strong> / <strong>123456</strong></p>
@@ -67,9 +66,15 @@
             <button type="button" class="nav-link nav-link--home" data-action="navigate" data-page="dashboard" title="Tổng quan"><i class="fas fa-table-cells-large" aria-hidden="true"></i><span>Tổng quan</span></button>
 
             <div class="nav-group">
-                <button type="button" class="nav-group__toggle" data-action="toggle-group" aria-expanded="true"><i class="fas fa-users-gear nav-group__icon" aria-hidden="true"></i><span class="nav-group__label">Quản lý khách hàng</span><i class="fas fa-chevron-down nav-group__chevron" aria-hidden="true"></i></button>
+                <button type="button" class="nav-group__toggle" data-action="toggle-group" aria-expanded="true"><i class="fas fa-users nav-group__icon" aria-hidden="true"></i><span class="nav-group__label">Quản lý khách hàng</span><i class="fas fa-chevron-down nav-group__chevron" aria-hidden="true"></i></button>
                 <div class="nav-group__items">
-                    <button type="button" class="nav-link" data-action="navigate" data-page="customers" title="Thông tin khách hàng"><i class="fas fa-users" aria-hidden="true"></i><span>Thông tin khách hàng</span></button>
+                    <button type="button" class="nav-link" data-action="navigate" data-page="customers" title="Thông tin khách hàng"><i class="fas fa-address-card" aria-hidden="true"></i><span>Thông tin khách hàng</span></button>
+                </div>
+            </div>
+
+            <div class="nav-group">
+                <button type="button" class="nav-group__toggle" data-action="toggle-group" aria-expanded="true"><i class="fas fa-users-gear nav-group__icon" aria-hidden="true"></i><span class="nav-group__label">Quản lý nhân viên</span><i class="fas fa-chevron-down nav-group__chevron" aria-hidden="true"></i></button>
+                <div class="nav-group__items">
                     <button type="button" class="nav-link" data-action="navigate" data-page="employees" title="Nhân viên"><i class="fas fa-user-tie" aria-hidden="true"></i><span>Nhân viên</span></button>
                 </div>
             </div>
@@ -210,12 +215,12 @@
                 </header>
                 <div class="card">
                     <div class="toolbar">
-                        <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm khách hàng</span><input type="search" id="searchCustomer" placeholder="Tìm theo tên hoặc SĐT…" autocomplete="off" data-rerender="customers"></label>
+                        <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm khách hàng</span><input type="search" id="searchCustomer" placeholder="Tìm theo tên, SĐT hoặc hạng khách…" autocomplete="off" data-rerender="customers"></label>
                         <span class="toolbar__meta" id="customersMeta"></span>
                     </div>
                     <div class="table-wrap">
                         <table class="table table--fluid">
-                            <thead><tr><th>STT</th><th>Họ tên</th><th>SĐT</th><th class="num">Thao tác</th></tr></thead>
+                            <thead><tr><th>STT</th><th>Họ tên</th><th>SĐT</th><th class="num">Số lần đến</th><th class="num">Tổng chi tiêu</th><th>Lần gần nhất</th><th>Hạng</th><th class="num">Thao tác</th></tr></thead>
                             <tbody id="customerTableBody"></tbody>
                         </table>
                     </div>
@@ -235,7 +240,7 @@
                     </div>
                     <div class="table-wrap">
                         <table class="table table--fluid">
-                            <thead><tr><th>STT</th><th>Họ tên</th><th>Chức vụ</th><th class="num">Thao tác</th></tr></thead>
+                            <thead><tr><th>STT</th><th>Họ tên</th><th>Chức vụ</th><th class="num" title="Hóa đơn đã thanh toán do nhân viên phục vụ">Hóa đơn phục vụ</th><th class="num">Doanh thu phục vụ</th><th class="num">Chuyến xe</th><th class="num" title="Phiếu nhập / xuất / kiểm kê do nhân viên lập">Phiếu kho</th><th class="num">Thao tác</th></tr></thead>
                             <tbody id="employeeTableBody"></tbody>
                         </table>
                     </div>
@@ -276,7 +281,7 @@
                 </header>
                 <div class="card">
                     <div class="card__body">
-                        <p class="field__hint tables-hint">Bấm vào một bàn để đổi trạng thái theo vòng: Trống → Đã đặt → Đang dùng → Trống.</p>
+                        <p class="field__hint tables-hint">Bấm vào bàn: Trống → Đang dùng (khách vào ngồi), Đang dùng → Trống (khách về). “Đã đặt” chỉ hiện khi bàn có lịch đặt hôm nay — bấm vào để check-in khách; lịch của ngày khác chỉ ghi chú dưới bàn.</p>
                         <div id="tablesGrid"></div>
                     </div>
                 </div>
@@ -870,6 +875,7 @@
                     <div class="field" id="rcpSupplierField"><label class="field__label" for="rcpSupplier">Nhà cung cấp</label><select class="input" id="rcpSupplier"></select></div>
                     <div class="field"><label class="field__label" for="rcpIngredient">Nguyên liệu <span class="field__req" aria-hidden="true">*</span></label><select class="input" id="rcpIngredient"></select><p class="field__error"></p></div>
                     <div class="field"><label class="field__label" for="rcpQty">Số lượng <span class="field__req" aria-hidden="true">*</span></label><input class="input" type="number" id="rcpQty" min="0" step="any" inputmode="decimal" placeholder="0"><p class="field__error"></p></div>
+                    <div class="field" id="rcpPriceField"><label class="field__label" for="rcpPrice">Đơn giá nhập (VNĐ) <span class="field__req" aria-hidden="true">*</span></label><input class="input" type="number" id="rcpPrice" min="1" step="any" inputmode="numeric"><p class="field__hint">Giá nhập lần này trở thành đơn giá mới của nguyên liệu (dùng tính giá vốn món).</p><p class="field__error"></p></div>
                     <div class="field field--full"><label class="field__label" for="rcpNote">Ghi chú</label><input class="input" type="text" id="rcpNote" maxlength="120" placeholder="Ví dụ: hàng hỏng, xuất dùng nội bộ, 10 thùng × 24 lon" autocomplete="off"><p class="field__error"></p></div>
                     <div class="form-preview" id="rcpPreview" aria-live="polite"></div>
                 </div>
@@ -1041,23 +1047,23 @@
 </div>
 
 <script src="assets/vendor/qrcode-generator/qrcode.js"></script>
-<script src="js/core/utils.js?v=14"></script>
-<script src="js/core/data.js?v=14"></script>
-<script src="js/core/store.js?v=14"></script>
-<script src="js/core/ui.js?v=14"></script>
-<script src="js/core/validate.js?v=14"></script>
-<script src="js/core/charts.js?v=14"></script>
-<script src="js/core/crud.js?v=14"></script>
-<script src="js/core/xlsx.js?v=14"></script>
-<script src="js/pages/tong-quan.js?v=14"></script>
-<script src="js/pages/khach-hang.js?v=14"></script>
-<script src="js/pages/ban-hang.js?v=14"></script>
-<script src="js/pages/goi-mon.js?v=14"></script>
-<script src="js/pages/nha-bep.js?v=14"></script>
-<script src="js/pages/kho.js?v=14"></script>
-<script src="js/pages/bom.js?v=14"></script>
-<script src="js/pages/xe-dua-don.js?v=14"></script>
-<script src="js/pages/bao-cao.js?v=14"></script>
-<script src="js/app.js?v=14"></script>
+<script src="js/core/utils.js?v=15"></script>
+<script src="js/core/data.js?v=15"></script>
+<script src="js/core/store.js?v=15"></script>
+<script src="js/core/ui.js?v=15"></script>
+<script src="js/core/validate.js?v=15"></script>
+<script src="js/core/charts.js?v=15"></script>
+<script src="js/core/crud.js?v=15"></script>
+<script src="js/core/xlsx.js?v=15"></script>
+<script src="js/pages/tong-quan.js?v=15"></script>
+<script src="js/pages/khach-hang.js?v=15"></script>
+<script src="js/pages/ban-hang.js?v=15"></script>
+<script src="js/pages/goi-mon.js?v=15"></script>
+<script src="js/pages/nha-bep.js?v=15"></script>
+<script src="js/pages/kho.js?v=15"></script>
+<script src="js/pages/bom.js?v=15"></script>
+<script src="js/pages/xe-dua-don.js?v=15"></script>
+<script src="js/pages/bao-cao.js?v=15"></script>
+<script src="js/app.js?v=15"></script>
 </body>
 </html>

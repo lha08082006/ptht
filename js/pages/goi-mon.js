@@ -14,6 +14,7 @@
     let cart = []; // [{ foodId, name, category, price, qty }]
     let invoiceFilter = 'all';
     let pendingTableId = null; // bàn được chọn sẵn (ví dụ sau khi check-in)
+    let pendingCustId = 0;     // khách được chọn sẵn (khách đặt bàn có SĐT trong danh sách khách hàng)
 
     /* ---------------- BỐI CẢNH ĐƠN: bàn đang có hóa đơn mở? ---------------- */
     function orderContext() {
@@ -44,7 +45,7 @@
             hint.textContent = `Bàn đang có ${U.code('HD', ctx.open.id)} (${U.fmtMoney(ctx.open.finalTotal)}, chưa thanh toán) — món mới sẽ được gọi thêm vào hóa đơn này.`;
             submitLabel.textContent = 'Gọi thêm vào ' + U.code('HD', ctx.open.id);
         } else {
-            const hold = ctx.tableId ? S.holdsOfTable(ctx.tableId).find(r => r.date === U.todayLocal()) : null;
+            const hold = ctx.tableId ? S.todayHold(ctx.tableId) : null;
             hint.textContent = hold ? `Bàn đang giữ cho ${U.code('RES', hold.id)} (${hold.name}, ${hold.time}).` : '';
             submitLabel.textContent = 'Gửi đơn & tạo hóa đơn';
         }
@@ -180,8 +181,16 @@
             U.byId('orderTableSelect').value = String(pendingTableId);
             pendingTableId = null;
         }
+        const keepCust = pendingCustId;
         UI.fillSelect('orderCustSelect', [{ value: 0, label: 'Khách lẻ' }]
-            .concat(db.customers.map(c => ({ value: c.id, label: `${c.name} · ${c.phone}` }))));
+            .concat(db.customers.map(c => {
+                const tier = S.customerStats(c.id).tier;
+                return { value: c.id, label: `${c.name} · ${c.phone}${tier.min > 0 ? ' · khách ' + tier.label : ''}` };
+            })));
+        if (keepCust) {
+            U.byId('orderCustSelect').value = String(keepCust);
+            pendingCustId = 0;
+        }
         UI.fillSelect('orderEmpSelect', db.employees
             .filter(e => e.role === 'Phục vụ' || e.role === 'Quản lý')
             .map(e => ({ value: e.id, label: `${e.name} · ${e.role}` })), { placeholder: '— Chọn nhân viên —' });
@@ -272,7 +281,7 @@
 
         // Bàn đang giữ cho một đặt bàn hôm nay: hỏi có phải khách của đặt bàn đó không
         if (!ctx.open) {
-            const hold = S.holdsOfTable(ctx.tableId).find(r => r.date === today);
+            const hold = S.todayHold(ctx.tableId);
             if (hold) {
                 const answer = await UI.confirm({
                     title: `${table.name} đang giữ cho ${U.code('RES', hold.id)}`,
@@ -325,9 +334,10 @@
         }
 
         const added = U.sum(items, x => x.qty);
-        const newlyLow = S.consumeForOrder(items, { invoiceId: invoice.id, empId, date: today, time });
+        const ticketId = S.nextId('kitchenOrders');
+        const newlyLow = S.consumeForOrder(items, { invoiceId: invoice.id, empId, date: today, time, ticketId });
         S.db.kitchenOrders.push({
-            id: S.nextId('kitchenOrders'), invoiceId: invoice.id, tableId: ctx.tableId, status: 'new',
+            id: ticketId, invoiceId: invoice.id, tableId: ctx.tableId, status: 'new',
             date: today, time, extra: !!ctx.open,
             items: items.map(it => ({ foodId: it.foodId, name: it.name, qty: it.qty }))
         });
@@ -447,9 +457,22 @@
     };
 
     /* ---------------- THANH TOÁN ---------------- */
-    QN.actions['invoice-pay'] = d => {
+    QN.actions['invoice-pay'] = async d => {
         const inv = S.get('invoices', d.id);
         if (!inv || inv.status !== 'pending') return;
+        // Bếp chưa làm xong món của hóa đơn này → hỏi lại trước khi thu tiền
+        const unfinished = S.db.kitchenOrders.filter(k => k.invoiceId === inv.id && k.status !== 'done');
+        if (unfinished.length) {
+            const ok = await UI.confirm({
+                title: 'Bếp chưa làm xong món',
+                message: `${U.code('HD', inv.id)} còn ${unfinished.length} phiếu bếp chưa hoàn thành (${unfinished.map(k => (k.status === 'new' ? 'đơn mới' : 'đang chế biến')).join(', ')}). Vẫn thanh toán?`,
+                confirmText: 'Vẫn thanh toán',
+                cancelText: 'Chưa',
+                tone: 'info',
+                icon: 'fa-fire'
+            });
+            if (!ok) return;
+        }
         U.byId('paymentContent').innerHTML = html`
             <div class="pay-summary">
                 <p class="pay-summary__label">${U.code('HD', inv.id)} · ${S.tableName(inv.tableId)} · ${S.customerName(inv.custId)}</p>
@@ -499,8 +522,9 @@
         clearCart() {
             cart = [];
         },
-        preselectTable(tableId) {
+        preselectTable(tableId, custId = 0) {
             pendingTableId = tableId;
+            pendingCustId = Number(custId) || 0;
         }
     };
 
