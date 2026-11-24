@@ -1056,3 +1056,140 @@
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.18); }
 }
+
+/* ---------- ĐỊNH MỨC BOM ---------- */
+.bom-note {
+    padding: var(--sp-3) var(--sp-5) 0;
+    font-size: var(--fs-sm);
+    color: var(--text-3);
+}
+
+.bom-note:empty {
+    display: none;
+}
+
+.bom-note strong {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-2);
+}
+
+.bom-dish td {
+    padding-top: var(--sp-4);
+    background: var(--surface-2);
+    border-top: 2px solid var(--border);
+}
+
+.bom-dish:first-child td {
+    border-top: 0;
+}
+
+.bom-dish:hover td {
+    background: var(--surface-2);
+}
+
+.bom-dish__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2) var(--sp-4);
+}
+
+.bom-dish__title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px var(--sp-2);
+    min-width: 0;
+    margin-right: auto;
+    font-size: var(--fs-md);
+}
+
+.bom-dish__cat {
+    font-size: var(--fs-xs);
+    color: var(--text-3);
+}
+
+.bom-dish__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px var(--sp-4);
+    font-size: var(--fs-sm);
+    color: var(--text-3);
+}
+
+.bom-dish__meta strong {
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+}
+
+.bom-line td:first-child {
+    padding-left: var(--sp-6);
+}
+
+.bom-empty {
+    font-size: var(--fs-sm);
+    color: var(--warning);
+}
+
+.bom-uses {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bom-uses li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--sp-2);
+}
+
+.bom-uses li span:last-child {
+    font-size: var(--fs-xs);
+    font-variant-numeric: tabular-nums;
+}
+
+.bom-table .badge {
+    margin-left: 6px;
+}
+
+.bom-table--variance .badge,
+.bom-table--food .badge {
+    margin-left: 0;
+}
+
+.range[hidden] {
+    display: none;
+}
+
+/* ---------- KIỂM KÊ KHO ---------- */
+.stocktake-date {
+    display: flex;
+    align-items: center;
+    min-height: 42px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.stocktake-hint {
+    margin: var(--sp-3) 0;
+    font-size: var(--fs-sm);
+    color: var(--text-3);
+}
+
+.stocktake-table .input {
+    width: 130px;
+    height: 36px;
+}
+
+.stocktake-field {
+    justify-items: end;
+}
+
+.stocktake-summary {
+    margin-top: var(--sp-3);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    color: var(--text-2);
+}

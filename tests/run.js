@@ -11,6 +11,7 @@ const SUITES = [
     ['loi-review', '9 lỗi đã sửa'],
     ['chuc-nang', 'Chức năng mới'],
     ['dinh-muc', 'Định mức món ăn & trừ kho'],
+    ['bom', 'Phân hệ định mức BOM'],
     ['du-lieu-lon', 'Dữ liệu lớn (90 ngày)'],
     ['quy-trinh', 'Một vòng quy trình đầy đủ']
 ];
