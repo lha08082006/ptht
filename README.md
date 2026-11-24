@@ -22,32 +22,34 @@ Hệ thống được thiết kế theo luồng quy trình thực tế từ ti�
 - **Điện thoại:** menu trượt, bảng tự cuộn ngang, thanh giỏ hàng nổi ở trang Gọi món.
 
 ### 1. Quản lý khách hàng
-- **Thông tin khách hàng:** Thêm, sửa, xóa, tìm kiếm (không cần gõ dấu) theo tên hoặc SĐT.
-- **Nhân viên:** Phân chia vai trò (Quản lý, Thu ngân, Bếp, Phục vụ, Tài xế).
+- **Thông tin khách hàng:** Thêm, sửa, xóa, tìm kiếm (không cần gõ dấu) theo tên, SĐT hoặc hạng; mỗi khách có **số lần đến, tổng chi tiêu, lần gần nhất** và **hạng khách hàng** theo tổng chi tiêu (Thường / Bạc từ 1 triệu / Vàng từ 3 triệu / Kim cương từ 10 triệu), kèm số tiền còn thiếu để lên hạng. Ô chọn khách khi gọi món ghi hạng để nhận ra khách quen.
 
-### 2. Quản lý bán hàng
-- **Đặt bàn:** Tạo đặt bàn theo ngày giờ và số khách, xác nhận (tự gán bàn trống nhỏ nhất đủ chỗ), hủy; **check-in khi khách đến** (bàn chuyển *Đang dùng*, mở luôn trang Gọi món với bàn đã chọn sẵn); **mã QR thật**, quét được bằng điện thoại; lọc theo trạng thái (Chờ xác nhận / Đã xác nhận / Đã đến / Đã hủy).
-- **Quản lý bàn:** Sơ đồ bàn theo khu (Tầng 1, Tầng 2, Sân vườn) với trạng thái Trống / Đã đặt / Đang dùng, ghi rõ bàn đang giữ cho lịch đặt nào.
+### 2. Quản lý nhân viên
+- **Nhân viên:** Phân chia vai trò (Quản lý, Thu ngân, Bếp, Phục vụ, Tài xế); **hiệu suất làm việc**: số hóa đơn phục vụ và doanh thu phục vụ, số chuyến xe (tài xế), số phiếu kho đã lập.
+
+### 3. Quản lý bán hàng
+- **Đặt bàn:** Tạo đặt bàn theo ngày giờ và số khách; danh sách bàn chọn được lọc theo **đúng ngày giờ đặt** (đủ chỗ, không trùng lịch đặt khác trong khoảng 3 giờ). Xác nhận tự gán bàn nhỏ nhất phù hợp; hủy; **check-in khi khách đến** (bàn chuyển *Đang dùng*, mở luôn trang Gọi món với bàn và khách đã chọn sẵn); **mã QR thật**, quét được bằng điện thoại; quá giờ hẹn 3 tiếng hoặc qua ngày mà khách chưa đến thì *Quá hạn*; lọc theo trạng thái.
+- **Quản lý bàn:** Sơ đồ bàn theo khu (Tầng 1, Tầng 2, Sân vườn) với trạng thái Trống / Đã đặt / Đang dùng. Bàn chỉ *Đã đặt* khi có lịch đặt **hôm nay** (bấm vào để check-in khách); lịch của ngày khác chỉ ghi chú dưới bàn, bàn vẫn dùng được hôm nay.
 - **Món ăn / Thực đơn:** Cập nhật giá bán, danh mục, trạng thái còn món / hết món; **định mức nguyên liệu cho 1 phần** (ví dụ nầm nướng: 0,3 kg nầm sữa bò + 0,05 kg rau), từ đó tự tính **giá vốn, lãi gộp** và **số phần còn làm được** theo tồn kho (ghi rõ nguyên liệu đang giới hạn).
 - **Gọi món:** Chọn bàn, khách, nhân viên phục vụ, voucher; thêm món vào đơn và gửi xuống bếp, đồng thời tạo hóa đơn. Thẻ món báo *Còn N phần* / *Hết nguyên liệu* theo định mức, không cho gọi vượt tồn kho; **gửi đơn là tự trừ kho** theo định mức (sinh phiếu xuất bán gắn mã hóa đơn) và cảnh báo nguyên liệu vừa chạm định mức tối thiểu. **Gọi thêm món** cho bàn đang có hóa đơn: món mới được cộng vào chính hóa đơn đó (không tách hóa đơn), bếp nhận phiếu có nhãn *Gọi thêm*. Gọi món ở bàn đang giữ cho lịch đặt hôm nay → hỏi có phải khách đã đặt không để check-in luôn.
 - **Hóa đơn & thanh toán:** Tự động tính tiền, áp dụng voucher, xem chi tiết hóa đơn, thanh toán bằng Tiền mặt / Chuyển khoản / VNPay / MoMo (lưu mã giao dịch), **in hóa đơn** (chỉ in tờ hóa đơn, không in menu).
 - **Voucher:** Quản lý mã giảm giá theo % và số lượt còn lại.
 
-### 3. Quản lý nhà bếp
-- **Công việc bếp (Kanban):** Đơn mới → Đang chế biến → Hoàn thành.
+### 4. Quản lý nhà bếp
+- **Công việc bếp (Kanban):** Đơn mới → Đang chế biến → Hoàn thành hôm nay. Phiếu còn ở *Đơn mới* có thể **hủy món** (khách đổi ý, gọi nhầm): món bị bỏ khỏi hóa đơn, nguyên liệu được hoàn kho đúng lượng đã xuất; hóa đơn hết món thì thành *Đã hủy*, trả lượt voucher và trả bàn.
 
-### 4. Quản lý kho hàng
+### 5. Quản lý kho hàng
 - **Định mức BOM (định mức nguyên vật liệu):** trang riêng cho định mức của mọi món — mỗi dòng có định mức tịnh, **tỷ lệ hao hụt** khi sơ chế và **định mức gộp** (lượng thật sự xuất kho = tịnh × (1 + hao hụt)), đơn giá, thành tiền, tỷ trọng trong giá vốn. Ba chế độ xem: *Theo món*, *Theo nguyên liệu* (tra ngược nguyên liệu dùng cho món nào, tồn hiện tại đủ làm bao nhiêu phần), *Định mức – thực tế* (theo kỳ: tồn đầu, nhập, xuất theo định mức, xuất tay, chênh lệch kiểm kê, tồn cuối, phần vượt định mức = thất thoát). Biểu đồ biên lãi gộp theo món; sửa định mức ngay trên trang; **xuất Excel (.xlsx)** 3 sheet.
 - **Kiểm kê kho:** nhập số lượng đếm thực tế của từng nguyên liệu; dòng lệch sổ sách tự sinh phiếu điều chỉnh (thừa / thiếu) để tồn kho khớp thực tế và được tính vào báo cáo đối chiếu định mức.
 - **Nguyên liệu:** Đơn vị tính, đơn giá, nhà cung cấp, tồn kho và **định mức tồn tối thiểu riêng từng nguyên liệu** (5 kg tôm khác 120 lon bia): *Sắp hết* khi tồn ≤ định mức, *Trung bình* khi tồn ≤ 2 × định mức; gợi ý số lượng nên nhập thêm; ghi rõ nguyên liệu đang dùng cho bao nhiêu món.
 - **Nhà cung cấp:** Đối tác cung ứng thực phẩm tươi sống, bia, nước ngọt.
-- **Nhập / xuất kho:** Lập phiếu nhập hoặc xuất (nhận số lẻ như 2,5 kg, có ô ghi chú); tồn kho chỉ thay đổi qua phiếu (tồn = tổng nhập − tổng xuất). Lọc theo *Nhập kho* / *Xuất tay* (hủy hàng, dùng nội bộ) / *Xuất bán* (tự động theo định mức gộp khi gửi bếp) / *Kiểm kê* (phiếu điều chỉnh).
+- **Nhập / xuất kho:** Lập phiếu nhập (nhập **đơn giá nhập thực tế**; giá mới thành đơn giá của nguyên liệu để tính giá vốn món) hoặc xuất (nhận số lẻ như 2,5 kg, có ô ghi chú); tồn kho chỉ thay đổi qua phiếu (tồn = tổng nhập − tổng xuất). Lọc theo *Nhập kho* / *Xuất tay* (hủy hàng, dùng nội bộ) / *Xuất bán* (tự động theo định mức gộp khi gửi bếp) / *Kiểm kê* (phiếu điều chỉnh).
 
-### 5. Xe đưa đón khách
+### 6. Xe đưa đón khách
 - **Quản lý xe:** Biển số, loại xe, số chỗ, trạng thái.
-- **Yêu cầu đưa đón:** Tạo yêu cầu, giao xe (xe sẵn sàng nhỏ nhất đủ chỗ + tài xế đang rảnh), theo dõi chuyến xe, **hoàn tất chuyến** (xe về *Sẵn sàng*, tài xế rảnh để nhận chuyến khác).
+- **Yêu cầu đưa đón:** Tạo yêu cầu (không nhận giờ đón đã qua), giao xe (xe sẵn sàng nhỏ nhất đủ chỗ + tài xế đang rảnh), **hủy yêu cầu** khi khách báo không cần đón, theo dõi chuyến xe, **hoàn tất chuyến** (xe về *Sẵn sàng*, tài xế rảnh để nhận chuyến khác).
 
-### 6. Báo cáo - Thống kê
+### 7. Báo cáo - Thống kê
 - **Báo cáo tài chính:** Doanh thu theo khoảng ngày, **tính theo ngày thanh toán** (hóa đơn lập hôm qua nhưng trả hôm nay được tính vào hôm nay; bảng ghi cả Ngày lập và Ngày TT); **lãi gộp = doanh thu − giá vốn** (giá vốn chốt lúc bán); biểu đồ tự gom theo ngày (≤ 31 ngày), tuần hoặc tháng khi chọn khoảng dài; tỷ lệ thanh toán, phương thức thanh toán, nguyên liệu tiêu thụ (theo phiếu xuất kho), chi tiết hóa đơn.
 - **Báo cáo món bán chạy:** Xếp hạng theo số phần, lãi gộp từng món, doanh thu theo danh mục và theo món.
 - **Báo cáo hàng hóa & tồn kho:** Tồn kho so với định mức của từng nguyên liệu, giá trị tồn kho, lịch sử nhập / xuất, chi tiết tồn từng nguyên liệu kèm gợi ý số lượng cần nhập.
@@ -114,7 +116,7 @@ ptht/
    - Đăng nhập bằng tài khoản dùng thử (có ghi ngay trên trang đăng nhập):
      - **Tên đăng nhập:** `admin`
      - **Mật khẩu:** `123456`
-   - Tích **Ghi nhớ đăng nhập** để lần sau trình duyệt tự điền sẵn tên đăng nhập.
+   - Tích **Ghi nhớ đăng nhập** để lần sau trình duyệt tự điền sẵn tên đăng nhập. (Web chỉ dành cho quản trị nên không có chức năng quên mật khẩu.)
 
 2. **Chạy qua GitHub Pages:**
    - Truy cập vào mục **Settings** của repository trên GitHub.
@@ -145,8 +147,9 @@ Chi tiết từng bộ kiểm thử: xem [`tests/README.md`](tests/README.md).
 
 - SĐT gồm 10–11 chữ số, bắt đầu bằng 0; tên, mã voucher, biển số xe không được trùng.
 - Giá, số lượng là số nguyên dương; xuất kho không vượt quá tồn kho; ngày lập phiếu kho không ở tương lai.
-- Không đặt bàn cho ngày giờ đã qua; số khách không vượt sức chứa của bàn; chỉ check-in được vào đúng ngày đặt.
-- Trạng thái bàn khớp với dữ liệu: gọi món / check-in → *Đang dùng*; xác nhận đặt bàn → *Đã đặt*; thanh toán xong chỉ trả bàn khi bàn không còn hóa đơn chờ — về *Đã đặt* nếu bàn còn lịch giữ chỗ, không thì về *Trống*.
+- Không đặt bàn cho ngày giờ đã qua; số khách không vượt sức chứa của bàn; một bàn không nhận hai lịch cùng ngày cách nhau dưới 3 giờ; lịch hôm nay sắp tới không xếp vào bàn đang có khách; chỉ check-in được vào đúng ngày đặt.
+- Trạng thái bàn khớp với dữ liệu: gọi món / check-in → *Đang dùng*; bàn có lịch đặt hôm nay (chưa quá hạn) → *Đã đặt*; thanh toán xong chỉ trả bàn khi bàn không còn hóa đơn chờ — về *Đã đặt* nếu còn lịch hôm nay, không thì về *Trống*.
+- Thanh toán hóa đơn còn phiếu bếp chưa hoàn thành phải xác nhận lại; chỉ hủy được món khi bếp chưa bắt đầu chế biến.
 - Mỗi bàn chỉ có một hóa đơn đang mở: gọi thêm món được cộng vào hóa đơn đó, tổng tiền và giảm giá voucher tính lại theo toàn bộ món.
 - Gửi đơn xuống bếp trừ kho theo định mức gộp (đã tính hao hụt) của từng món; không gửi được nếu kho không đủ; giá vốn từng món được chốt lúc bán (đổi định mức hay giá nhập sau này không làm sai lãi của hóa đơn cũ).
 - Đối chiếu định mức: dùng thực tế = xuất theo định mức + xuất tay − chênh lệch kiểm kê; phần vượt định mức được tính tiền theo đơn giá nguyên liệu.
