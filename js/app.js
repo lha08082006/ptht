@@ -71,9 +71,7 @@
             U.byId('loginError').hidden = true;
             U.byId('loginPassword').value = '';
             enterApp('dashboard');
-            UI.toast(S.restoredFromStorage
-                ? 'Đăng nhập thành công. Dữ liệu lần trước đã được khôi phục.'
-                : 'Đăng nhập thành công. Xin chào Admin!', 'success');
+            UI.toast(loginMessage(), 'success');
         });
     }
 
@@ -227,9 +225,21 @@
         closeNav();
     });
 
+    /** Lời chào sau khi đăng nhập: nói rõ đang dùng dữ liệu nào */
+    function loginMessage() {
+        if (S.seedRefreshed) return 'Đăng nhập thành công. Dữ liệu mẫu đã được làm mới theo ngày hôm nay.';
+        if (!S.restoredFromStorage) return 'Đăng nhập thành công. Xin chào Admin!';
+        const at = S.savedAt ? new Date(S.savedAt) : null;
+        if (at && !isNaN(at) && U.toISODate(at) !== U.todayLocal()) {
+            const when = U.pad2(at.getHours()) + ':' + U.pad2(at.getMinutes()) + ' ngày ' + U.fmtDate(U.toISODate(at));
+            return `Đăng nhập thành công. Đã khôi phục dữ liệu lưu lúc ${when} — muốn số liệu mẫu theo hôm nay thì bấm “Khôi phục dữ liệu mẫu”.`;
+        }
+        return 'Đăng nhập thành công. Dữ liệu lần trước đã được khôi phục.';
+    }
+
     /** Gọi sau mỗi thay đổi dữ liệu: lưu vào trình duyệt + cập nhật chuông */
     function changed() {
-        S.save();
+        S.commit();
         refreshBell();
     }
 
