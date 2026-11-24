@@ -4,7 +4,7 @@
    gọi món → bếp → thanh toán, kho, xe đưa đón, báo cáo, điện thoại.
    Chạy riêng: node tests/hoi-quy.js
    ========================================================= */
-const { APP_URL, newPage, login, state, go, isOpen, fieldError, fieldDbg, lastToast, submit, shot, runStandalone } = require('./lib');
+const { APP_URL, newPage, login, state, go, isOpen, fieldError, fieldDbg, lastToast, submit, shot, payInvoice, runStandalone } = require('./lib');
 
 module.exports = async function hoiQuy(browser, check) {
     const page = await newPage(browser);
@@ -185,14 +185,12 @@ module.exports = async function hoiQuy(browser, check) {
     await page.click(`[data-action="invoice-view"][data-id="${inv.id}"]`);
     check('Xem chi tiết hóa đơn (HĐ chờ ghi rõ chưa thanh toán)', await isOpen(page, 'invoiceDetailModal') && (await page.textContent('#invoiceDetailContent')).includes('chưa được thanh toán'));
     await page.keyboard.press('Escape');
-    await page.click(`[data-action="invoice-pay"][data-id="${inv.id}"]`);
-    await page.click('[data-action="pay-confirm"][data-method="MoMo"]');
+    await payInvoice(page, inv.id, 'MoMo');
     const paidInv = await state(page, id => QN.store.get('invoices', id), inv.id);
     check('Thanh toán: lưu phương thức + mã GD', paidInv.status === 'paid' && paidInv.payMethod === 'MoMo' && /^TXN/.test(paidInv.txId) && !!paidInv.paidAt);
     check('Bàn còn HĐ khác → vẫn Đang dùng (L12)', await state(page, t => QN.store.get('tables', t).status === 'occupied', freeTable));
     await page.click('[data-action="invoice-filter"][data-filter="all"]');
-    await page.click(`[data-action="invoice-pay"][data-id="${inv2}"]`);
-    await page.click('[data-action="pay-confirm"][data-method="Tiền mặt"]');
+    await payInvoice(page, inv2, 'Tiền mặt');
     check('Trả hết HĐ → bàn Trống', await state(page, t => QN.store.get('tables', t).status === 'available', freeTable));
     await page.click(`[data-action="invoice-view"][data-id="${inv.id}"]`);
     check('Chi tiết hiện mã GD', (await page.textContent('#invoiceDetailContent')).includes(paidInv.txId));
@@ -209,30 +207,44 @@ module.exports = async function hoiQuy(browser, check) {
     check('Đặt bàn ngày đã qua → lỗi', (await fieldError(page, 'resDate')).length > 0);
     check('Số người vượt bàn lớn nhất → lỗi', (await fieldError(page, 'resGuests')).includes('10 chỗ'));
     await page.fill('#resDate', tomorrow); await page.fill('#resGuests', '3');
-    check('Dropdown bàn chỉ hiện bàn trống đủ chỗ', await state(page, () => [...document.getElementById('resTable').options].filter(o => o.value).every(o => { const t = QN.store.get('tables', o.value); return t.status === 'available' && t.seats >= 3; })));
+    await page.dispatchEvent('#resDate', 'change');
+    const opts = await state(page, d => {
+        const ids = [...document.getElementById('resTable').options].filter(o => o.value).map(o => Number(o.value));
+        return { ids, ok: ids.every(id => !QN.store.tableBlockReason(QN.store.get('tables', id), { date: d, time: '19:00', guests: 3 })) };
+    }, tomorrow);
+    check('Dropdown bàn: chỉ bàn đủ chỗ, không trùng lịch vào giờ đặt (bàn 11 có lịch 18:00 mai bị loại)', opts.ok && opts.ids.length > 0 && !opts.ids.includes(11), opts);
     await submit(page, 'reservationModal');
     const res = await state(page, () => QN.store.db.reservations[QN.store.db.reservations.length - 1]);
     check('Tạo đặt bàn chờ xác nhận', res.name === 'Khách Test' && res.status === 'pending');
     await page.click(`[data-action="reservation-confirm"][data-id="${res.id}"]`);
     const resAfter = await state(page, id => { const r = QN.store.get('reservations', id); return { r, seats: QN.store.get('tables', r.tableId).seats, status: QN.store.get('tables', r.tableId).status }; }, res.id);
-    check('Xác nhận: gán bàn nhỏ nhất đủ chỗ (4 chỗ cho 3 khách)', resAfter.r.status === 'confirmed' && resAfter.seats === 4 && resAfter.status === 'reserved', resAfter);
-    // đặt bàn chọn sẵn bàn, rồi bàn đó bị dùng → xác nhận phải chuyển bàn, không ghi đè (L10)
-    const t2 = await state(page, () => QN.store.db.tables.find(t => t.status === 'available' && t.seats >= 2).id);
+    check('Xác nhận cho ngày mai: gán bàn 4 chỗ nhỏ nhất không trùng lịch (bỏ qua bàn 11)', resAfter.r.status === 'confirmed' && resAfter.seats === 4 && resAfter.r.tableId !== 11, resAfter);
+    check('Lịch ngày mai không làm bàn hôm nay thành "Đã đặt"', resAfter.status !== 'reserved', resAfter.status);
+    // đặt bàn chọn sẵn bàn, rồi bàn đó bị lịch khác chiếm cùng giờ → xác nhận phải chuyển bàn, không ghi đè (L10)
+    const t2 = 5; // bàn 2 chỗ
     await page.click('[data-action="reservation-add"]');
-    await page.fill('#resName', 'Khách B'); await page.fill('#resPhone', '0922222222'); await page.fill('#resDate', tomorrow); await page.fill('#resGuests', '2');
+    await page.fill('#resName', 'Khách B'); await page.fill('#resPhone', '0922222222'); await page.fill('#resDate', tomorrow); await page.fill('#resTime', '19:00'); await page.fill('#resGuests', '2');
     await page.dispatchEvent('#resGuests', 'input');
     await page.selectOption('#resTable', String(t2));
     await submit(page, 'reservationModal');
     const resB = await state(page, () => QN.store.db.reservations[QN.store.db.reservations.length - 1].id);
-    await state(page, t => { QN.store.get('tables', t).status = 'occupied'; }, t2);
+    const resC = await state(page, ([t, d]) => {
+        const S = QN.store, id = S.nextId('reservations');
+        S.db.reservations.push({ id, name: 'Khách C', phone: '0933334444', date: d, time: '20:00', guests: 2, tableId: t, status: 'confirmed', note: '', qr: 'RES-C' });
+        return id;
+    }, [t2, tomorrow]);
     await page.click(`[data-action="reservation-confirm"][data-id="${resB}"]`);
-    check('Bàn đã chọn bị dùng → không ghi đè, chuyển bàn khác (L10)', await state(page, ([t, id]) => QN.store.get('tables', t).status === 'occupied' && QN.store.get('reservations', id).tableId !== t, [t2, resB]));
+    check('Bàn đã chọn trùng giờ với lịch khác → không ghi đè, chuyển bàn khác (L10)', await state(page, ([t, b, c]) => QN.store.get('reservations', b).tableId !== t && QN.store.get('reservations', b).status === 'confirmed' && QN.store.get('reservations', c).tableId === t, [t2, resB, resC]));
     await page.click(`[data-action="reservation-qr"][data-id="${res.id}"]`);
     check('Xem mã QR', await isOpen(page, 'qrModal') && (await page.textContent('#qrContent')).includes(res.qr));
     await page.keyboard.press('Escape');
     await page.click(`[data-action="reservation-cancel"][data-id="${res.id}"]`);
     await page.click('#confirmOk'); await page.waitForTimeout(80);
-    check('Hủy đặt bàn trả bàn về Trống', await state(page, id => { const r = QN.store.get('reservations', id); return r.status === 'cancelled' && QN.store.get('tables', r.tableId).status === 'available'; }, res.id));
+    check('Hủy lịch ngày mai: lịch hủy, bàn không còn ghi chú lịch đó', await state(page, id => { const r = QN.store.get('reservations', id); return r.status === 'cancelled' && QN.store.holdsOfTable(r.tableId).every(h => h.id !== id); }, res.id));
+    check('Bàn có lịch hôm nay hiện "Đã đặt"', await state(page, () => QN.store.get('tables', 4).status === 'reserved'));
+    await page.click('[data-action="reservation-cancel"][data-id="4"]');
+    await page.click('#confirmOk'); await page.waitForTimeout(80);
+    check('Hủy lịch hôm nay → bàn trả về Trống', await state(page, () => QN.store.get('reservations', 4).status === 'cancelled' && QN.store.get('tables', 4).status === 'available'));
 
     /* ---------- NHẬP / XUẤT KHO (L2, L6) ---------- */
     await go(page, 'reservations');

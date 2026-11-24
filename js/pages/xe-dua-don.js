@@ -67,7 +67,8 @@
                 <td>${UI.statusBadge('delivery', d.status)}</td>
                 <td class="num"><div class="cell-actions">
                     ${d.status === 'pending'
-                        ? html`<button type="button" class="btn btn--secondary btn--sm" data-action="delivery-assign" data-id="${d.id}"><i class="fas fa-car" aria-hidden="true"></i>Giao xe</button>`
+                        ? html`<button type="button" class="btn btn--secondary btn--sm" data-action="delivery-assign" data-id="${d.id}"><i class="fas fa-car" aria-hidden="true"></i>Giao xe</button>
+                            ${UI.iconButton({ action: 'delivery-cancel', icon: 'fa-ban', label: 'Hủy yêu cầu đưa đón của ' + S.customerName(d.custId), tone: 'danger', data: { id: d.id } })}`
                         : html`<span class="text-muted">—</span>`}
                 </div></td>
             </tr>`), { empty: 'Chưa có yêu cầu đưa đón nào' });
@@ -153,6 +154,26 @@
             departure: req.time ? req.time.slice(11, 16) : '—', status: 'Đang đón'
         });
         UI.toast(`Đã giao xe ${vehicle.plate} (${vehicle.seats} chỗ), tài xế ${driver.name} cho ${S.customerName(req.custId)}`, 'success');
+        renderDelivery();
+        UI.focusFallback();
+        QN.app.changed();
+    };
+
+    /** Khách báo không cần đón nữa: hủy yêu cầu đang chờ giao xe */
+    QN.actions['delivery-cancel'] = async d => {
+        const req = S.get('deliveryReqs', d.id);
+        if (!req || req.status !== 'pending') return;
+        const ok = await UI.confirm({
+            title: 'Hủy yêu cầu đưa đón?',
+            message: `${S.customerName(req.custId)} · đón tại ${req.pickup}${req.time ? ' · ' + U.fmtDateTime(req.time) : ''} · ${req.guests} người`,
+            confirmText: 'Hủy yêu cầu',
+            cancelText: 'Không',
+            tone: 'danger',
+            icon: 'fa-ban'
+        });
+        if (!ok) return;
+        req.status = 'cancelled';
+        UI.toast(`Đã hủy yêu cầu đưa đón của ${S.customerName(req.custId)}`, 'success');
         renderDelivery();
         UI.focusFallback();
         QN.app.changed();

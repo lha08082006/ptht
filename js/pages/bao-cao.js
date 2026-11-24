@@ -97,14 +97,16 @@
 
         // Nguyên liệu tiêu thụ = phiếu xuất kho trong khoảng ngày (đúng với tên biểu đồ)
         const used = {};
-        S.db.receipts.filter(r => r.type === 'export' && inRange(r.date)).forEach(r => {
+        // (phiếu hoàn kho khi hủy món chưa chế biến được trừ ra)
+        S.db.receipts.filter(r => (r.type === 'export' || r.reversal) && inRange(r.date)).forEach(r => {
             const x = used[r.ingredientId] || (used[r.ingredientId] = { name: r.ingredientName, qty: 0, cost: 0, id: r.ingredientId });
-            x.qty += r.qty;
-            x.cost += r.total;
+            const sign = r.reversal ? -1 : 1;
+            x.qty = S.round3(x.qty + sign * r.qty);
+            x.cost += sign * r.total;
         });
         C.bars(U.byId('consumptionChart'), {
             title: 'Nguyên liệu tiêu thụ',
-            data: Object.values(used).sort((a, b) => b.cost - a.cost).map(x => {
+            data: Object.values(used).filter(x => x.qty > 0).sort((a, b) => b.cost - a.cost).map(x => {
                 const unit = (S.get('ingredients', x.id) || {}).unit || '';
                 return { label: x.name, value: x.cost, valueText: U.fmtMoney(x.cost), note: `· ${U.fmtNumber(x.qty)} ${unit}` };
             }),

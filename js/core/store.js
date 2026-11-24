@@ -24,7 +24,8 @@
         },
         invoice: {
             paid: { label: 'Đã TT', long: 'Đã thanh toán', tone: 'success' },
-            pending: { label: 'Chờ TT', long: 'Chờ thanh toán', tone: 'warning' }
+            pending: { label: 'Chờ TT', long: 'Chờ thanh toán', tone: 'warning' },
+            cancelled: { label: 'Đã hủy', long: 'Đã hủy (hủy hết món)', tone: 'neutral' }
         },
         reservation: {
             pending: { label: 'Chờ xác nhận', tone: 'warning' },
@@ -44,7 +45,8 @@
         delivery: {
             pending: { label: 'Chờ giao xe', tone: 'warning' },
             assigned: { label: 'Đã giao xe', tone: 'info' },
-            completed: { label: 'Hoàn tất', tone: 'success' }
+            completed: { label: 'Hoàn tất', tone: 'success' },
+            cancelled: { label: 'Đã hủy', tone: 'neutral' }
         },
         trip: {
             'Đang đón': { label: 'Đang đón', tone: 'info' },
@@ -63,6 +65,21 @@
 
     /** Định mức tồn mặc định khi nguyên liệu chưa khai báo */
     const DEFAULT_MIN_STOCK = 5;
+
+    /** Hạng khách hàng theo tổng chi tiêu ở các hóa đơn đã thanh toán (cao xuống thấp) */
+    const CUSTOMER_TIERS = [
+        { label: 'Kim cương', min: 10000000, tone: 'success' },
+        { label: 'Vàng', min: 3000000, tone: 'warning' },
+        { label: 'Bạc', min: 1000000, tone: 'info' },
+        { label: 'Thường', min: 0, tone: 'neutral' }
+    ];
+
+    /** Một lịch đặt bàn giữ bàn trong khoảng 3 giờ quanh giờ hẹn (đủ cho một bữa nhậu) */
+    const HOLD_MINUTES = 180;
+    const toMin = hm => {
+        const [h, m] = String(hm || '00:00').split(':').map(Number);
+        return (h || 0) * 60 + (m || 0);
+    };
 
     /** Làm tròn 3 chữ số thập phân (0,1 + 0,2 không thành 0,30000000000000004) */
     const round3 = x => Math.round((Number(x) || 0) * 1000) / 1000;
@@ -115,6 +132,7 @@
         STATUS,
         DEFAULT_MIN_STOCK,
         PAY_METHODS,
+        CUSTOMER_TIERS,
         restoredFromStorage: false,
 
         /** Nạp dữ liệu đã lưu; nếu chưa có (hoặc hỏng) thì tạo dữ liệu mẫu */
@@ -122,12 +140,24 @@
             const saved = readSaved();
             store.restoredFromStorage = !!saved;
             replaceAll(saved || QN.createSeedData());
-            if (saved) store.releaseExpiredHolds();
+            store.syncTableHolds();
         },
 
-        /** Mở lại dữ liệu cũ sau vài ngày: bàn "Đã đặt" mà lịch đặt đã qua (không còn ai giữ chỗ) → "Trống" */
-        releaseExpiredHolds() {
-            db.tables.forEach(t => { if (t.status === 'reserved') store.freeTable(t); });
+        /**
+         * Trạng thái "Đã đặt" do lịch đặt bàn của HÔM NAY quyết định: mở lại web sang ngày mới,
+         * lịch đã quá hạn, lịch của ngày khác… thì bàn trống trở lại. Trả về true nếu có bàn đổi trạng thái.
+         */
+        syncTableHolds() {
+            let changed = false;
+            db.tables.forEach(t => {
+                if (t.status === 'occupied') return;
+                const next = store.todayHold(t.id) ? 'reserved' : 'available';
+                if (t.status !== next) {
+                    t.status = next;
+                    changed = true;
+                }
+            });
+            return changed;
         },
 
         /** Ghi lại sau mỗi thay đổi (gộp các thay đổi liên tiếp) */
@@ -279,7 +309,7 @@
          * Trừ kho theo định mức cho một lần gửi bếp: mỗi nguyên liệu một phiếu xuất tự động gắn mã hóa đơn.
          * Trả về các nguyên liệu vừa rơi xuống mức "Sắp hết" (để cảnh báo).
          */
-        consumeForOrder(lines, { invoiceId, empId, date, time }) {
+        consumeForOrder(lines, { invoiceId, empId, date, time, ticketId }) {
             const newlyLow = [];
             store.ingredientNeeds(lines).forEach((qty, id) => {
                 const g = store.get('ingredients', id);
@@ -290,18 +320,99 @@
                     id: store.nextId('receipts'), type: 'export', date, time, empId,
                     supplierId: null, ingredientId: g.id, ingredientName: g.name,
                     qty, unitPrice: g.price, total: Math.round(qty * g.price),
-                    note: 'Xuất bán theo ' + U.code('HD', invoiceId), auto: true, invoiceId
+                    note: 'Xuất bán theo ' + U.code('HD', invoiceId), auto: true, invoiceId, ticketId
                 });
                 if (!wasLow && store.stockLevel(g) === 'low') newlyLow.push(g);
             });
             return newlyLow;
         },
 
+        /**
+         * Hủy một phiếu bếp chưa chế biến (khách đổi ý / gọi nhầm):
+         * bỏ đúng số món của phiếu khỏi hóa đơn và tính lại tiền; hoàn kho đúng lượng đã xuất cho phiếu đó
+         * (phiếu "Hoàn kho" gắn mã HĐ); hóa đơn hết món thì thành "Đã hủy", trả lượt voucher, trả bàn.
+         */
+        cancelKitchenOrder(ticket) {
+            const inv = ticket.invoiceId ? store.get('invoices', ticket.invoiceId) : null;
+            const date = U.todayLocal();
+            const time = U.nowTime();
+            const lines = ticket.items.map(it => ({ foodId: Number(it.foodId), qty: Number(it.qty) }));
+            if (inv && inv.status === 'pending') {
+                lines.forEach(l => {
+                    let left = l.qty;
+                    inv.items.filter(x => Number(x.foodId) === l.foodId).forEach(x => {
+                        const take = Math.min(left, x.qty);
+                        x.qty -= take;
+                        left -= take;
+                    });
+                });
+                inv.items = inv.items.filter(x => x.qty > 0);
+                inv.total = U.sum(inv.items, x => x.price * x.qty);
+                inv.discount = Math.round(inv.total * (Number(inv.voucherPercent) || 0) / 100);
+                inv.finalTotal = inv.total - inv.discount;
+                if (!inv.items.length) {
+                    inv.status = 'cancelled';
+                    inv.cancelledAt = U.nowDateTime();
+                    const voucher = inv.voucher ? store.get('vouchers', inv.voucher) : null;
+                    if (voucher) voucher.qty += 1;
+                }
+            }
+            // Lượng cần hoàn: đúng các phiếu xuất của lần gửi bếp này; dữ liệu cũ chưa gắn phiếu bếp thì theo định mức hiện tại
+            const own = db.receipts.filter(r => r.auto && r.type === 'export' && r.ticketId === ticket.id);
+            const back = new Map();
+            if (own.length) own.forEach(r => back.set(Number(r.ingredientId), round3((back.get(Number(r.ingredientId)) || 0) + r.qty)));
+            else store.ingredientNeeds(lines).forEach((qty, id) => back.set(id, qty));
+            const returned = [];
+            back.forEach((qty, id) => {
+                const g = store.get('ingredients', id);
+                if (!g || qty <= 0) return;
+                g.stock = round3((Number(g.stock) || 0) + qty);
+                db.receipts.push({
+                    id: store.nextId('receipts'), type: 'import', date, time, empId: inv ? inv.empId : 0,
+                    supplierId: null, ingredientId: g.id, ingredientName: g.name, qty, unitPrice: g.price, total: Math.round(qty * g.price),
+                    note: `Hoàn kho do hủy món (${U.code('HD', ticket.invoiceId)})`, auto: true, reversal: true,
+                    invoiceId: ticket.invoiceId, ticketId: ticket.id
+                });
+                returned.push({ ingredient: g, qty });
+            });
+            store.remove('kitchenOrders', ticket);
+            if (inv && inv.status === 'cancelled') {
+                const table = store.get('tables', inv.tableId);
+                if (table && table.status === 'occupied') store.freeTable(table);
+            }
+            return { invoice: inv, returned };
+        },
+
+        /** Khách hàng: số lần đến, tổng chi tiêu, lần gần nhất, hạng hiện tại và hạng kế tiếp (theo HĐ đã thanh toán) */
+        customerStats(custId) {
+            const paid = db.invoices.filter(i => i.status === 'paid' && Number(i.custId) === Number(custId));
+            const spent = U.sum(paid, i => i.finalTotal);
+            return {
+                visits: paid.length,
+                spent,
+                last: paid.map(i => store.paidDate(i)).sort().pop() || '',
+                tier: CUSTOMER_TIERS.find(t => spent >= t.min),
+                next: CUSTOMER_TIERS.slice().reverse().find(t => t.min > spent) || null
+            };
+        },
+
+        /** Nhân viên: hóa đơn phục vụ đã thanh toán + doanh thu, chuyến xe đã chạy, phiếu kho đã lập (không tính phiếu tự động) */
+        employeeStats(empId) {
+            const id = Number(empId);
+            const invoices = db.invoices.filter(i => i.status === 'paid' && Number(i.empId) === id);
+            return {
+                invoices: invoices.length,
+                revenue: U.sum(invoices, i => i.finalTotal),
+                trips: db.trips.filter(t => Number(t.driverId) === id).length,
+                receipts: db.receipts.filter(r => !r.auto && Number(r.empId) === id).length
+            };
+        },
+
         /** Loại phiếu kho: nhập, xuất bán (tự động theo định mức), xuất tay, điều chỉnh kiểm kê (dùng cho bộ lọc phiếu kho) */
         receiptKind(r) {
             if (r.stocktake) return 'stocktake';
-            if (r.type === 'import') return 'import';
-            return r.auto ? 'sale' : 'export';
+            if (r.auto) return 'sale'; // xuất bán tự động và phiếu hoàn kho khi hủy món
+            return r.type === 'import' ? 'import' : 'export';
         },
 
         /**
@@ -318,7 +429,8 @@
                 const sumKind = kind => round3(U.sum(inRange.filter(r => store.receiptKind(r) === kind), r => r.qty));
                 const opening = round3(U.sum(own.filter(r => r.date < from), signed));
                 const imported = sumKind('import');
-                const bom = sumKind('sale');
+                // xuất bán trừ đi phần hoàn kho khi hủy món chưa chế biến
+                const bom = round3(U.sum(inRange.filter(r => store.receiptKind(r) === 'sale'), r => -signed(r)));
                 const manual = sumKind('export');
                 const counted = round3(U.sum(inRange.filter(r => r.stocktake), signed)); // + thừa, − thiếu
                 const actual = round3(bom + manual - counted);
@@ -360,16 +472,54 @@
         },
 
         /** Đặt bàn đã xác nhận, chưa đến, từ hôm nay trở đi đang giữ bàn này */
+        /** Đặt bàn chờ / đã xác nhận nhưng đã qua ngày, hoặc quá giờ hẹn hơn 3 tiếng mà khách chưa đến */
+        reservationOverdue(r) {
+            if (r.status !== 'pending' && r.status !== 'confirmed') return false;
+            const today = U.todayLocal();
+            if (r.date < today) return true;
+            return r.date === today && toMin(U.nowTime()) > toMin(r.time) + HOLD_MINUTES;
+        },
+
+        /** Các lịch đặt sắp tới (đã xác nhận, chưa quá hạn) của một bàn — để ghi chú trên sơ đồ bàn */
         holdsOfTable(tableId, exceptId) {
             const today = U.todayLocal();
-            return db.reservations.filter(r => r.status === 'confirmed' && Number(r.tableId) === Number(tableId) && r.date >= today && r.id !== exceptId)
+            return db.reservations.filter(r => r.status === 'confirmed' && Number(r.tableId) === Number(tableId) && r.date >= today
+                && r.id !== exceptId && !store.reservationOverdue(r))
                 .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
         },
 
-        /** Trạng thái bàn khi không còn khách ngồi: còn đặt bàn giữ chỗ thì "Đã đặt", không thì "Trống" */
+        /** Lịch đặt của HÔM NAY đang giữ bàn (bàn hiện "Đã đặt"); lịch của ngày khác không chặn bàn hôm nay */
+        todayHold(tableId, exceptId) {
+            const today = U.todayLocal();
+            return store.holdsOfTable(tableId, exceptId).find(r => r.date === today) || null;
+        },
+
+        /** Lịch đặt khác của bàn trùng giờ (cùng ngày, cách nhau dưới 3 giờ) */
+        reservationConflict(tableId, date, time, exceptId) {
+            return db.reservations.find(r => r.status === 'confirmed' && Number(r.tableId) === Number(tableId) && r.date === date
+                && r.id !== exceptId && Math.abs(toMin(r.time) - toMin(time)) < HOLD_MINUTES) || null;
+        },
+
+        /**
+         * Bàn nhận được lịch đặt { date, time, guests } không: đủ chỗ, không trùng lịch đặt khác;
+         * riêng lịch hôm nay trong vòng 3 giờ tới thì bàn còn phải không có khách đang ngồi.
+         * Trả về null nếu được, ngược lại là lý do.
+         */
+        tableBlockReason(table, { date, time, guests, exceptId }) {
+            if (!table) return 'Không có bàn';
+            if (guests && table.seats < guests) return `${table.name} chỉ có ${table.seats} chỗ`;
+            const clash = store.reservationConflict(table.id, date, time, exceptId);
+            if (clash) return `${table.name} đã có lịch ${U.code('RES', clash.id)} lúc ${clash.time} cùng ngày`;
+            if (date === U.todayLocal() && toMin(time) - toMin(U.nowTime()) < HOLD_MINUTES && table.status === 'occupied') {
+                return `${table.name} đang có khách`;
+            }
+            return null;
+        },
+
+        /** Trạng thái bàn khi không còn khách ngồi: có lịch đặt hôm nay thì "Đã đặt", không thì "Trống" */
         freeTable(table) {
             if (!table || store.pendingInvoicesOfTable(table.id).length) return;
-            table.status = store.holdsOfTable(table.id).length ? 'reserved' : 'available';
+            table.status = store.todayHold(table.id) ? 'reserved' : 'available';
         },
 
         activeTrips() {
@@ -383,8 +533,7 @@
         /** Số việc cần xử lý ngay — hiển thị trên chuông */
         attention() {
             const kitchenNew = db.kitchenOrders.filter(k => k.status === 'new').length;
-            const today = U.todayLocal();
-            const reservationsPending = db.reservations.filter(r => r.status === 'pending' && r.date >= today).length;
+            const reservationsPending = db.reservations.filter(r => r.status === 'pending' && !store.reservationOverdue(r)).length;
             const lowStock = db.ingredients.filter(g => store.stockLevel(g) === 'low').length;
             return { kitchenNew, reservationsPending, lowStock, total: kitchenNew + reservationsPending + lowStock };
         },
@@ -396,13 +545,13 @@
             const items = [];
             const kitchenNew = db.kitchenOrders.filter(k => k.status === 'new');
             if (kitchenNew.length) items.push({ urgent: true, icon: 'fa-fire', tone: 'danger', page: 'kitchen', text: `${kitchenNew.length} đơn bếp mới chờ chế biến` });
-            const pendingRes = db.reservations.filter(r => r.status === 'pending' && r.date >= today);
+            const pendingRes = db.reservations.filter(r => r.status === 'pending' && !store.reservationOverdue(r));
             if (pendingRes.length) items.push({ urgent: true, icon: 'fa-calendar-check', tone: 'warning', page: 'reservations', text: `${pendingRes.length} đặt bàn chờ xác nhận` });
             const low = db.ingredients.filter(g => store.stockLevel(g) === 'low');
             if (low.length) items.push({ urgent: true, icon: 'fa-triangle-exclamation', tone: 'danger', page: 'ingredients', text: `${low.length} nguyên liệu sắp hết: ${low.map(g => `${g.name} (nên nhập thêm ${U.fmtNumber(store.reorderQty(g))} ${g.unit})`).join(', ')}` });
             const soldOut = db.foods.filter(f => f.status === 'available' && store.portionsLeft(f) === 0);
             if (soldOut.length) items.push({ urgent: false, icon: 'fa-bowl-food', tone: 'warning', page: 'foods', text: `${soldOut.length} món hết nguyên liệu, chưa bán được: ${soldOut.map(f => f.name).join(', ')}` });
-            const late = db.reservations.filter(r => r.status === 'confirmed' && r.date === today && r.time <= now);
+            const late = db.reservations.filter(r => r.status === 'confirmed' && r.date === today && r.time <= now && !store.reservationOverdue(r));
             if (late.length) items.push({ urgent: false, icon: 'fa-user-clock', tone: 'warning', page: 'reservations', text: `${late.length} khách đặt bàn đã đến giờ nhưng chưa check-in` });
             const arriving = db.reservations.filter(r => r.status === 'confirmed' && r.date === today && r.time > now);
             if (arriving.length) items.push({ urgent: false, icon: 'fa-clock', tone: 'info', page: 'reservations', text: `${arriving.length} lượt đặt bàn sắp đến hôm nay (${arriving.map(r => r.time).sort().join(', ')})` });

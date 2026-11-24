@@ -148,11 +148,13 @@
     /** Phiếu điều chỉnh kiểm kê có nhãn riêng (không lẫn với nhập / xuất thường) */
     function receiptBadge(r) {
         if (r.stocktake) return UI.badge(r.type === 'import' ? 'Kiểm kê +' : 'Kiểm kê −', r.type === 'import' ? 'info' : 'warning');
+        if (r.reversal) return UI.badge('Hoàn kho', 'info');
         return UI.statusBadge('receipt', r.type);
     }
 
     /** Dòng phụ dưới loại phiếu: phiếu xuất bán tự động ghi mã hóa đơn, phiếu tay / kiểm kê ghi chú */
     function receiptSub(r) {
+        if (r.reversal) return html`<span class="t-sub">Hủy món · ${U.code('HD', r.invoiceId)}</span>`;
         if (r.auto && r.invoiceId) return html`<span class="t-sub">Bán · ${U.code('HD', r.invoiceId)}</span>`;
         return r.note ? html`<span class="t-sub" title="${r.note}">${r.note}</span>` : '';
     }
@@ -164,8 +166,10 @@
         const type = val('rcpType');
         const ingredient = S.get('ingredients', val('rcpIngredient'));
         U.byId('rcpSupplierField').hidden = type === 'export';
+        U.byId('rcpPriceField').hidden = type === 'export';
         if (type === 'import' && ingredient && (changed === 'ingredient' || changed === 'type')) {
             U.byId('rcpSupplier').value = ingredient.supplierId ? String(ingredient.supplierId) : '';
+            U.byId('rcpPrice').value = ingredient.price;
         }
         const preview = U.byId('rcpPreview');
         if (!ingredient) {
@@ -175,11 +179,13 @@
         const qty = parseQty(U.byId('rcpQty'));
         const validQty = qty !== '' && Number.isFinite(qty) && qty > 0;
         const after = S.round3(type === 'import' ? ingredient.stock + qty : ingredient.stock - qty);
+        const entered = parseQty(U.byId('rcpPrice'));
+        const price = type === 'import' && entered !== '' && Number.isFinite(entered) && entered > 0 ? entered : ingredient.price;
         preview.innerHTML = html`
             <span>Tồn hiện tại: <strong>${U.fmtNumber(ingredient.stock)} ${ingredient.unit}</strong></span>
-            <span>Đơn giá: <strong>${U.fmtMoney(ingredient.price)}</strong></span>
+            <span>Đơn giá${type === 'import' && price !== ingredient.price ? ' nhập' : ''}: <strong>${U.fmtMoney(price)}</strong>${type === 'import' && price !== ingredient.price ? html` <span class="text-muted">(đang ${U.fmtMoney(ingredient.price)})</span>` : ''}</span>
             ${validQty ? html`
-                <span>Thành tiền: <strong>${U.fmtMoney(qty * ingredient.price)}</strong></span>
+                <span>Thành tiền: <strong>${U.fmtMoney(qty * price)}</strong></span>
                 <span>Tồn sau phiếu: <strong class="${after < 0 ? 'text-danger' : ''}">${U.fmtNumber(after)} ${ingredient.unit}</strong></span>` : ''}`;
     }
 
@@ -210,6 +216,7 @@
         const empId = Number(val('rcpEmp')) || 0;
         const ingredient = S.get('ingredients', val('rcpIngredient'));
         const qty = parseQty(U.byId('rcpQty'));
+        const price = parseQty(U.byId('rcpPrice'));
         const note = val('rcpNote').trim().replace(/\s+/g, ' ');
         const today = U.todayLocal();
         const errors = V.check([
@@ -219,20 +226,25 @@
             ['rcpQty', qty, R.required('Vui lòng nhập số lượng'), R.number({ above: 0, max: 100000, decimals: 3 }),
                 v => (type === 'export' && ingredient && Number(v) > ingredient.stock + 1e-9
                     ? `Không đủ tồn kho (còn ${U.fmtNumber(ingredient.stock)} ${ingredient.unit})` : null)],
+            ['rcpPrice', type === 'import' ? price : 1, R.required('Vui lòng nhập đơn giá nhập'), R.integer({ min: 1, max: 100000000 })],
             ['rcpNote', note, R.maxLength(120)]
         ]);
         if (V.show(form, errors)) return;
 
         const supplierId = type === 'import' ? (Number(val('rcpSupplier')) || null) : null;
+        // Phiếu nhập dùng giá nhập thực tế và cập nhật đơn giá nguyên liệu; phiếu xuất tính theo đơn giá hiện tại
+        const unitPrice = type === 'import' ? price : ingredient.price;
+        const oldPrice = ingredient.price;
+        if (type === 'import') ingredient.price = price;
         ingredient.stock = S.round3(ingredient.stock + (type === 'import' ? qty : -qty));
         const id = S.nextId('receipts');
         S.db.receipts.push({
             id, type, date, time: date === today ? U.nowTime() : '', empId, supplierId,
             ingredientId: ingredient.id, ingredientName: ingredient.name,
-            qty: S.round3(qty), unitPrice: ingredient.price, total: Math.round(qty * ingredient.price), note
+            qty: S.round3(qty), unitPrice, total: Math.round(qty * unitPrice), note
         });
         UI.closeModal('receiptModal');
-        UI.toast(`Đã lưu phiếu ${type === 'import' ? 'nhập' : 'xuất'} ${U.code('PK', id)}: ${ingredient.name} ${type === 'import' ? '+' : '−'}${U.fmtNumber(qty)} ${ingredient.unit}`, 'success');
+        UI.toast(`Đã lưu phiếu ${type === 'import' ? 'nhập' : 'xuất'} ${U.code('PK', id)}: ${ingredient.name} ${type === 'import' ? '+' : '−'}${U.fmtNumber(qty)} ${ingredient.unit}${type === 'import' && price !== oldPrice ? ` · đơn giá ${U.fmtMoney(oldPrice)} → ${U.fmtMoney(price)}` : ''}`, 'success');
         renderInventory();
         QN.app.changed();
     };
@@ -248,7 +260,8 @@
                 <div><dt>Ngày lập</dt><dd>${U.fmtDate(r.date)}</dd></div>
                 <div><dt>Nhân viên lập</dt><dd>${S.employeeName(r.empId)}</dd></div>
                 ${r.supplierId ? html`<div><dt>Nhà cung cấp</dt><dd>${S.supplierName(r.supplierId)}</dd></div>` : ''}
-                ${r.auto && r.invoiceId ? html`<div><dt>Nguồn</dt><dd>Tự động trừ kho theo định mức khi gửi đơn ${U.code('HD', r.invoiceId)} xuống bếp</dd></div>` : ''}
+                ${r.reversal ? html`<div><dt>Nguồn</dt><dd>Hoàn kho tự động khi hủy món chưa chế biến của ${U.code('HD', r.invoiceId)}</dd></div>` : ''}
+                ${r.auto && !r.reversal && r.invoiceId ? html`<div><dt>Nguồn</dt><dd>Tự động trừ kho theo định mức khi gửi đơn ${U.code('HD', r.invoiceId)} xuống bếp</dd></div>` : ''}
                 ${r.note && !r.auto ? html`<div><dt>Ghi chú</dt><dd>${r.note}</dd></div>` : ''}
             </dl>
             <div class="table-wrap">
@@ -262,7 +275,7 @@
                     </tr></tbody>
                 </table>
             </div>`;
-        UI.openModal('receiptDetailModal', { title: `${r.stocktake ? 'Phiếu điều chỉnh kiểm kê' : (r.type === 'import' ? 'Phiếu nhập kho' : 'Phiếu xuất kho')} ${U.code('PK', r.id)}` });
+        UI.openModal('receiptDetailModal', { title: `${r.stocktake ? 'Phiếu điều chỉnh kiểm kê' : r.reversal ? 'Phiếu hoàn kho' : (r.type === 'import' ? 'Phiếu nhập kho' : 'Phiếu xuất kho')} ${U.code('PK', r.id)}` });
     };
 
     /* ---------------- KIỂM KÊ KHO ----------------
@@ -362,6 +375,7 @@
             U.byId('rcpType').addEventListener('change', () => syncReceiptForm('type'));
             U.byId('rcpIngredient').addEventListener('change', () => syncReceiptForm('ingredient'));
             U.byId('rcpQty').addEventListener('input', () => syncReceiptForm('qty'));
+            U.byId('rcpPrice').addEventListener('input', () => syncReceiptForm('price'));
             U.byId('stocktakeBody').addEventListener('input', syncStocktake);
         }
     };

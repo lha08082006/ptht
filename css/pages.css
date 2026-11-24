@@ -1193,3 +1193,15 @@
     font-weight: 600;
     color: var(--text-2);
 }
+
+/* Phiếu bếp "Đơn mới": nút bắt đầu + nút hủy món */
+.ticket__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+}
+
+.ticket__actions .btn {
+    flex: 1 1 auto;
+    width: auto;
+}

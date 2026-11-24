@@ -96,6 +96,23 @@ async function submit(page, modalId) {
     await page.click(`#${modalId} button[type="submit"]`);
     await page.waitForTimeout(80);
 }
+/**
+ * Thanh toán một hóa đơn ở trang Hóa đơn. Nếu bếp còn phiếu chưa xong, web hỏi lại → đồng ý thanh toán tiếp.
+ * Trả về true nếu web có hỏi lại.
+ */
+async function payInvoice(page, id, method) {
+    await page.click(`[data-action="invoice-pay"][data-id="${id}"]`);
+    await page.waitForTimeout(80);
+    const asked = await isOpen(page, 'confirmModal');
+    if (asked) {
+        await page.click('#confirmOk');
+        await page.waitForTimeout(80);
+    }
+    await page.click(`[data-action="pay-confirm"][data-method="${method}"]`);
+    await page.waitForTimeout(80);
+    return asked;
+}
+
 /** Số dòng dữ liệu đang hiện trong bảng (bỏ dòng "không có dữ liệu") */
 const rowCount = (page, tbodyId) => page.evaluate(id => [...document.querySelectorAll(`#${id} tr`)].filter(tr => !tr.classList.contains('table__empty') && !tr.classList.contains('table__more')).length, tbodyId);
 
@@ -139,6 +156,6 @@ function runStandalone(suite, title) {
 
 module.exports = {
     APP_URL, DEFAULT_NOW, SHOTS_DIR,
-    reporter, newPage, login, openApp, state, go, isOpen, fieldError, fieldDbg, lastToast, submit, rowCount, shot,
+    reporter, newPage, login, openApp, state, go, isOpen, fieldError, fieldDbg, lastToast, submit, rowCount, shot, payInvoice,
     closeContexts, runSuite, runStandalone
 };

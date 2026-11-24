@@ -6,7 +6,7 @@
    Mỗi bước kiểm tra cả màn hình lẫn dữ liệu liên quan ở các phân hệ khác.
    Chạy riêng: node tests/quy-trinh.js
    ========================================================= */
-const { openApp, state, go, isOpen, fieldError, lastToast, submit, shot, runStandalone } = require('./lib');
+const { openApp, state, go, isOpen, fieldError, lastToast, submit, shot, payInvoice, runStandalone } = require('./lib');
 
 const S = (page, fn, arg) => page.evaluate(fn, arg);
 const stockOf = (page, id) => S(page, i => QN.store.get('ingredients', i).stock, id);
@@ -90,9 +90,8 @@ module.exports = async function quyTrinh(browser, check) {
 
     /* 7. THANH TOÁN VNPAY */
     await go(p, 'invoices');
-    await p.click(`[data-action="invoice-pay"][data-id="${inv.id}"]`);
-    await p.click('[data-action="pay-confirm"][data-method="VNPay"]');
-    await p.waitForTimeout(100);
+    const asked = await payInvoice(p, inv.id, 'VNPay');
+    check('7. Phiếu gọi thêm chưa làm xong → web hỏi lại trước khi thu tiền', asked);
     const paid = await S(p, id => QN.store.get('invoices', id), inv.id);
     check('7. Thanh toán VNPay: lưu phương thức, mã giao dịch, giờ thanh toán', paid.status === 'paid' && paid.payMethod === 'VNPay' && !!paid.txId && !!paid.paidAt, paid);
     check('   Bàn trả về "Trống" (không còn lịch giữ chỗ)', await S(p, t => QN.store.get('tables', t).status === 'available', tableId));

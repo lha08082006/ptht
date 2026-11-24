@@ -92,10 +92,6 @@
         UI.toast('Đã đăng xuất.', 'info');
     };
 
-    QN.actions['forgot-password'] = () => {
-        UI.toast('Vui lòng liên hệ quản lý quán để được cấp lại mật khẩu.', 'info');
-    };
-
     /* ---------- ĐIỀU HƯỚNG ---------- */
     function setGroupCollapsed(group, collapsed) {
         group.classList.toggle('is-collapsed', collapsed);
@@ -137,6 +133,7 @@
         closeAttention();
         window.scrollTo(0, 0);
         UI.resetPaging();
+        if (S.syncTableHolds()) S.save(); // qua ngày mới / lịch quá hạn → trả bàn
         QN.pages[page].render();
         refreshBell();
     }
