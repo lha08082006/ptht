@@ -81,6 +81,13 @@
         if (c.meta) UI.setText(c.meta, query ? `${list.length} / ${all.length} ${c.label}` : `${all.length} ${c.label}`);
     }
 
+    /** Vẽ lại bảng của danh mục; nếu đang sửa từ trang khác (vd. trang Định mức BOM) thì vẽ lại cả trang đó */
+    function renderAll(key) {
+        render(key);
+        const current = QN.app.currentPage();
+        if (current !== key && QN.pages[current]) QN.pages[current].render();
+    }
+
     function openForm(key, id) {
         const c = registry[key];
         const form = U.byId(c.modal).querySelector('form');
@@ -125,8 +132,8 @@
             UI.toast(`Đã thêm ${c.label} “${c.display(record)}”`, 'success');
         }
         if (c.afterSave) c.afterSave(record, !existing);
-        UI.closeModal(c.modal);           // focus quay về nút đã mở hộp thoại…
-        UI.keepFocus(() => render(key));  // …và vẫn giữ đúng nút đó sau khi bảng vẽ lại
+        UI.closeModal(c.modal);                // focus quay về nút đã mở hộp thoại…
+        UI.keepFocus(() => renderAll(key));    // …và vẫn giữ đúng nút đó sau khi bảng vẽ lại
         QN.app.changed();
     }
 
@@ -149,7 +156,7 @@
         S.remove(c.key, record);
         if (c.afterDelete) c.afterDelete(record);
         UI.toast(`Đã xóa ${c.label} “${c.display(record)}”`, 'success');
-        UI.keepFocus(() => render(key));
+        UI.keepFocus(() => renderAll(key));
         QN.app.changed();
     }
 

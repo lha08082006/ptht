@@ -72,7 +72,8 @@
         const missing = S.recipeOf(food).map(l => {
             const g = S.get('ingredients', l.ingredientId);
             const free = S.round3((Number(g.stock) || 0) - (reserved.get(Number(g.id)) || 0));
-            return free + 1e-9 < l.qty ? `${g.name} còn ${U.fmtNumber(Math.max(free, 0))} ${g.unit} (cần ${U.fmtNumber(l.qty)} ${g.unit}/phần)` : null;
+            const need = S.grossQty(l);
+            return free + 1e-9 < need ? `${g.name} còn ${U.fmtNumber(Math.max(free, 0))} ${g.unit} (cần ${U.fmtNumber(need)} ${g.unit}/phần)` : null;
         }).filter(Boolean);
         return `Không đủ nguyên liệu cho thêm 1 phần “${food.name}”: ${missing.join('; ')}.`;
     }

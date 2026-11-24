@@ -4,8 +4,10 @@
    - Neo theo ngày hiện tại: hóa đơn trong 7 ngày gần nhất, đặt bàn ở các ngày tới.
    - Nhất quán: bàn có hóa đơn chờ = "Đang dùng", xe đang chạy chuyến = "Đang dùng",
      tồn kho = tổng nhập − tổng xuất của các phiếu kho.
-   - Định mức món ăn (recipe): lượng nguyên liệu cho 1 phần. Mỗi đơn gửi bếp tự trừ kho
-     theo định mức và sinh phiếu xuất "bán hàng" — dữ liệu mẫu cũng được tạo đúng như vậy.
+   - Định mức BOM (recipe): lượng nguyên liệu tịnh cho 1 phần + tỷ lệ hao hụt khi sơ chế.
+     Định mức gộp = tịnh × (1 + hao hụt %) là lượng thật sự xuất kho. Mỗi đơn gửi bếp tự trừ kho
+     theo định mức gộp và sinh phiếu xuất "bán hàng" — dữ liệu mẫu cũng được tạo đúng như vậy.
+   - Có một lần kiểm kê (2 ngày trước) lệch so với sổ sách để báo cáo đối chiếu định mức có số liệu.
    ========================================================= */
 (function (QN) {
     'use strict';
@@ -48,13 +50,13 @@
             { id: 7, name: 'Bùi Văn Lái', role: 'Tài xế' }
         ];
 
-        // recipe: định mức cho 1 phần — [mã nguyên liệu, lượng theo đơn vị tính của nguyên liệu]
+        // recipe (BOM): định mức cho 1 phần — [mã nguyên liệu, lượng tịnh theo ĐVT của nguyên liệu, hao hụt %]
         const foods = [
             { id: 1, name: 'Nầm sữa nướng giềng mẻ', category: 'Món nướng', price: 189000, status: 'available', recipe: [[1, 0.3], [8, 0.05]] },
             { id: 2, name: 'Ếch sốt tiêu gừng chua cay', category: 'Món xào', price: 159000, status: 'available', recipe: [[2, 0.4]] },
             { id: 3, name: 'Lợn mán nướng giềng mẻ', category: 'Món nướng', price: 219000, status: 'available', recipe: [[3, 0.3], [8, 0.05]] },
-            { id: 4, name: 'Gỏi chân gà trộn thính', category: 'Khai vị', price: 129000, status: 'available', recipe: [[4, 0.3], [8, 0.1]] },
-            { id: 5, name: 'Cá dưa chua tứ xuyên', category: 'Món cá', price: 249000, status: 'available', recipe: [[5, 1], [13, 0.3]] },
+            { id: 4, name: 'Gỏi chân gà trộn thính', category: 'Khai vị', price: 129000, status: 'available', recipe: [[4, 0.3], [8, 0.1, 10]] },
+            { id: 5, name: 'Cá dưa chua tứ xuyên', category: 'Món cá', price: 249000, status: 'available', recipe: [[5, 1, 10], [13, 0.3]] },
             { id: 6, name: 'Tôm sú ủ muối thảo mộc', category: 'Hải sản', price: 289000, status: 'available', recipe: [[6, 0.4]] },
             { id: 7, name: 'Lạp xưởng Tây Bắc xào', category: 'Món xào', price: 149000, status: 'available', recipe: [[7, 0.3], [8, 0.05]] },
             { id: 8, name: 'Gỏi sứa sốt Thái', category: 'Khai vị', price: 139000, status: 'unavailable', recipe: [] },
@@ -62,7 +64,7 @@
             { id: 10, name: 'Bia Tự Do', category: 'Đồ uống', price: 35000, status: 'available', recipe: [[9, 1]] },
             { id: 11, name: 'Nước ngọt', category: 'Đồ uống', price: 25000, status: 'available', recipe: [[10, 1]] },
             { id: 12, name: 'Nầm sữa cháy tỏi', category: 'Món nướng', price: 199000, status: 'available', recipe: [[1, 0.3]] }
-        ].map(f => Object.assign(f, { recipe: f.recipe.map(([ingredientId, qty]) => ({ ingredientId, qty })) }));
+        ].map(f => Object.assign(f, { recipe: f.recipe.map(([ingredientId, qty, waste = 0]) => ({ ingredientId, qty, waste })) }));
 
         const suppliers = [
             { id: 1, name: 'NCC Tây Bắc', address: 'Sơn La', phone: '0241234567' },
@@ -98,7 +100,8 @@
             { id: 13, name: 'Dưa chua', unit: 'kg', price: 30000, supplierId: 5, minStock: 3, stock: 0 }
         ];
         const round3 = x => Math.round(x * 1000) / 1000;
-        const unitCost = food => Math.round(U.sum(food.recipe, l => l.qty * ingredients.find(g => g.id === l.ingredientId).price));
+        const gross = l => round3(l.qty * (1 + (l.waste || 0) / 100));
+        const unitCost = food => Math.round(U.sum(food.recipe, l => gross(l) * ingredients.find(g => g.id === l.ingredientId).price));
 
         const vehicles = [
             { id: 1, plate: '30A-12345', type: 'Xe 4 chỗ', seats: 4, status: 'available' },
@@ -202,12 +205,17 @@
             [-2, '09:00', 'import', 8, 10, 1, '']
         ];
         const draft = manualRows.map(([offset, time, type, ingredientId, qty, empId, note]) => ({ date: day(offset), time, type, ingredientId, qty, empId, note }));
+        // Kiểm kê cuối ngày hôm kia: thiếu 2 lon bia và 0,3 kg rau so với sổ sách
+        [[9, -2], [8, -0.3]].forEach(([ingredientId, diff]) => draft.push({
+            date: day(-2), time: '23:30', type: diff > 0 ? 'import' : 'export', ingredientId, qty: Math.abs(diff), empId: 1,
+            stocktake: true, note: `Kiểm kê ${U.fmtDate(day(-2))}: ${diff > 0 ? 'thừa' : 'thiếu'} so với sổ sách`
+        }));
 
         // Mỗi đơn gửi bếp tự xuất kho theo định mức (gộp theo nguyên liệu của đơn đó)
         invoices.forEach(inv => {
             const need = new Map();
             inv.items.forEach(it => foods.find(f => f.id === it.foodId).recipe.forEach(l => {
-                need.set(l.ingredientId, round3((need.get(l.ingredientId) || 0) + l.qty * it.qty));
+                need.set(l.ingredientId, round3((need.get(l.ingredientId) || 0) + gross(l) * it.qty));
             }));
             need.forEach((qty, ingredientId) => draft.push({
                 date: inv.date, time: inv.time, type: 'export', ingredientId, qty, empId: inv.empId,
@@ -226,6 +234,7 @@
                     note: r.note || ''
                 };
                 if (r.auto) Object.assign(receipt, { auto: true, invoiceId: r.invoiceId });
+                if (r.stocktake) receipt.stocktake = true;
                 return receipt;
             });
 

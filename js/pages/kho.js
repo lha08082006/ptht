@@ -117,13 +117,14 @@
 
     function renderInventory() {
         const all = S.db.receipts.slice().sort(S.byNewest);
-        // Xuất tay (hủy hàng, dùng nội bộ…) tách khỏi xuất bán tự động theo định mức món
-        const kindOf = r => (r.type === 'import' ? 'import' : (r.auto ? 'sale' : 'export'));
+        // Xuất tay (hủy hàng, dùng nội bộ…) tách khỏi xuất bán tự động theo định mức món và điều chỉnh kiểm kê
+        const kindOf = S.receiptKind;
         UI.syncTabs('inventory', inventoryFilter, {
             all: all.length,
             import: all.filter(r => kindOf(r) === 'import').length,
             export: all.filter(r => kindOf(r) === 'export').length,
-            sale: all.filter(r => kindOf(r) === 'sale').length
+            sale: all.filter(r => kindOf(r) === 'sale').length,
+            stocktake: all.filter(r => kindOf(r) === 'stocktake').length
         });
         const query = val('searchReceipt').trim();
         const list = (inventoryFilter === 'all' ? all : all.filter(r => kindOf(r) === inventoryFilter))
@@ -131,7 +132,7 @@
         UI.renderRows('inventoryTableBody', list.map(r => html`
             <tr>
                 <td class="t-code">${U.code('PK', r.id)}</td>
-                <td>${UI.statusBadge('receipt', r.type)}${receiptSub(r)}</td>
+                <td>${receiptBadge(r)}${receiptSub(r)}</td>
                 <td class="nowrap">${U.fmtDate(r.date)}</td>
                 <td>${S.employeeName(r.empId)}</td>
                 <td>${r.supplierId ? S.supplierName(r.supplierId) : html`<span class="text-muted">—</span>`}</td>
@@ -144,7 +145,13 @@
             : { empty: inventoryFilter === 'all' ? 'Chưa có phiếu kho nào' : 'Không có phiếu ở loại này' });
     }
 
-    /** Dòng phụ dưới loại phiếu: phiếu xuất bán tự động ghi mã hóa đơn, phiếu tay ghi chú */
+    /** Phiếu điều chỉnh kiểm kê có nhãn riêng (không lẫn với nhập / xuất thường) */
+    function receiptBadge(r) {
+        if (r.stocktake) return UI.badge(r.type === 'import' ? 'Kiểm kê +' : 'Kiểm kê −', r.type === 'import' ? 'info' : 'warning');
+        return UI.statusBadge('receipt', r.type);
+    }
+
+    /** Dòng phụ dưới loại phiếu: phiếu xuất bán tự động ghi mã hóa đơn, phiếu tay / kiểm kê ghi chú */
     function receiptSub(r) {
         if (r.auto && r.invoiceId) return html`<span class="t-sub">Bán · ${U.code('HD', r.invoiceId)}</span>`;
         return r.note ? html`<span class="t-sub" title="${r.note}">${r.note}</span>` : '';
@@ -237,7 +244,7 @@
         U.byId('receiptDetailContent').innerHTML = html`
             <dl class="detail-list">
                 <div><dt>Mã phiếu</dt><dd>${U.code('PK', r.id)}</dd></div>
-                <div><dt>Loại phiếu</dt><dd>${UI.statusBadge('receipt', r.type)}</dd></div>
+                <div><dt>Loại phiếu</dt><dd>${receiptBadge(r)}</dd></div>
                 <div><dt>Ngày lập</dt><dd>${U.fmtDate(r.date)}</dd></div>
                 <div><dt>Nhân viên lập</dt><dd>${S.employeeName(r.empId)}</dd></div>
                 ${r.supplierId ? html`<div><dt>Nhà cung cấp</dt><dd>${S.supplierName(r.supplierId)}</dd></div>` : ''}
@@ -255,7 +262,98 @@
                     </tr></tbody>
                 </table>
             </div>`;
-        UI.openModal('receiptDetailModal', { title: `Phiếu ${r.type === 'import' ? 'nhập' : 'xuất'} kho ${U.code('PK', r.id)}` });
+        UI.openModal('receiptDetailModal', { title: `${r.stocktake ? 'Phiếu điều chỉnh kiểm kê' : (r.type === 'import' ? 'Phiếu nhập kho' : 'Phiếu xuất kho')} ${U.code('PK', r.id)}` });
+    };
+
+    /* ---------------- KIỂM KÊ KHO ----------------
+       Đếm tồn thực tế từng nguyên liệu; dòng lệch sổ sách sinh phiếu điều chỉnh (thừa: nhập, thiếu: xuất)
+       để tồn kho khớp thực tế và báo cáo "Định mức – thực tế" thấy được phần thất thoát. */
+    function stocktakeRows() {
+        return S.db.ingredients.map(g => {
+            const el = U.byId('stk-' + g.id);
+            const actual = el ? parseQty(el) : '';
+            // Ô trống / không phải số / âm: chưa tính chênh lệch (sẽ báo lỗi khi lưu)
+            const valid = actual !== '' && Number.isFinite(actual) && actual >= 0;
+            return { g, el, actual, diff: valid ? S.round3(actual - g.stock) : null };
+        });
+    }
+
+    function syncStocktake() {
+        let short = 0;
+        let extra = 0;
+        let count = 0;
+        stocktakeRows().forEach(x => {
+            const cell = document.querySelector(`#stocktakeBody tr[data-ing="${x.g.id}"] [data-diff]`);
+            if (!cell) return;
+            if (x.diff === null) { cell.textContent = '—'; cell.className = 'num'; return; }
+            if (Math.abs(x.diff) < 1e-9) { cell.textContent = 'Khớp'; cell.className = 'num text-muted'; return; }
+            count += 1;
+            if (x.diff < 0) short += -x.diff * x.g.price; else extra += x.diff * x.g.price;
+            cell.textContent = (x.diff > 0 ? '+' : '−') + U.fmtNumber(Math.abs(x.diff)) + ' ' + x.g.unit;
+            cell.className = 'num t-strong ' + (x.diff < 0 ? 'text-danger' : 'text-info');
+        });
+        U.byId('stocktakeSummary').textContent = count
+            ? `${count} nguyên liệu lệch sổ sách · thiếu ${U.fmtMoney(short)} · thừa ${U.fmtMoney(extra)}`
+            : 'Tồn thực tế đang khớp sổ sách.';
+    }
+
+    QN.actions['stocktake-open'] = () => {
+        const form = document.querySelector('#stocktakeModal form');
+        form.reset();
+        V.clear(form);
+        UI.setText('stkDateText', `${U.fmtDate(U.todayLocal())} (hôm nay)`);
+        const manager = S.db.employees.find(e => e.role === 'Quản lý') || S.db.employees[0];
+        UI.fillSelect('stkEmp', S.db.employees.map(e => ({ value: e.id, label: `${e.name} · ${e.role}` })), { value: manager ? manager.id : '' });
+        U.byId('stocktakeBody').innerHTML = S.db.ingredients.map(g => html`
+            <tr data-ing="${g.id}">
+                <td><span class="t-strong">${g.name}</span><span class="t-sub">${S.supplierName(g.supplierId)}</span></td>
+                <td class="num">${U.fmtNumber(g.stock)} ${g.unit}</td>
+                <td class="num">
+                    <div class="field stocktake-field">
+                        <label class="sr-only" for="stk-${g.id}">Tồn thực tế ${g.name}</label>
+                        <div class="input-unit"><input class="input" type="number" id="stk-${g.id}" min="0" step="any" inputmode="decimal" value="${g.stock}"><span class="input-unit__suffix">${g.unit}</span></div>
+                        <p class="field__error"></p>
+                    </div>
+                </td>
+                <td class="num text-muted" data-diff>Khớp</td>
+            </tr>`).join('');
+        syncStocktake();
+        UI.openModal('stocktakeModal', { title: 'Kiểm kê kho' });
+    };
+
+    QN.forms.stocktake = form => {
+        const note = val('stkNote').trim().replace(/\s+/g, ' ');
+        const rows = stocktakeRows();
+        const errors = V.check([['stkNote', note, R.maxLength(120)]].concat(rows.map(x => [
+            'stk-' + x.g.id, x.actual, R.required('Nhập tồn thực tế'), R.number({ min: 0, max: 1000000, decimals: 3 })
+        ])));
+        if (V.show(form, errors)) return;
+
+        const today = U.todayLocal();
+        const time = U.nowTime();
+        const empId = Number(val('stkEmp')) || 0;
+        const changed = rows.filter(x => Math.abs(x.diff) > 1e-9);
+        if (!changed.length) {
+            UI.closeModal('stocktakeModal');
+            UI.toast('Tồn thực tế khớp sổ sách — không cần phiếu điều chỉnh.', 'success');
+            return;
+        }
+        let short = 0;
+        let extra = 0;
+        changed.forEach(x => {
+            const qty = Math.abs(x.diff);
+            if (x.diff < 0) short += qty * x.g.price; else extra += qty * x.g.price;
+            S.db.receipts.push({
+                id: S.nextId('receipts'), type: x.diff > 0 ? 'import' : 'export', date: today, time, empId, supplierId: null,
+                ingredientId: x.g.id, ingredientName: x.g.name, qty, unitPrice: x.g.price, total: Math.round(qty * x.g.price),
+                stocktake: true, note: `Kiểm kê ${U.fmtDate(today)}: ${x.diff > 0 ? 'thừa' : 'thiếu'} so với sổ sách${note ? ' · ' + note : ''}`
+            });
+            x.g.stock = S.round3(x.actual);
+        });
+        UI.closeModal('stocktakeModal');
+        UI.toast(`Đã lưu kiểm kê: ${changed.length} nguyên liệu lệch sổ sách (thiếu ${U.fmtMoney(short)}, thừa ${U.fmtMoney(extra)}). Tồn kho đã khớp thực tế.`, 'success');
+        renderInventory();
+        QN.app.changed();
     };
 
     QN.pages.inventory = {
@@ -264,6 +362,7 @@
             U.byId('rcpType').addEventListener('change', () => syncReceiptForm('type'));
             U.byId('rcpIngredient').addEventListener('change', () => syncReceiptForm('ingredient'));
             U.byId('rcpQty').addEventListener('input', () => syncReceiptForm('qty'));
+            U.byId('stocktakeBody').addEventListener('input', syncStocktake);
         }
     };
 })(window.QN);

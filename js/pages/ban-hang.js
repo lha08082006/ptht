@@ -23,7 +23,7 @@
         if (!recipe.length) return html`<span class="t-sub text-warning">Chưa có định mức</span>`;
         return html`<span class="t-sub">${recipe.map(l => {
             const g = S.get('ingredients', l.ingredientId);
-            return `${g.name} ${U.fmtNumber(l.qty)} ${g.unit}`;
+            return `${g.name} ${U.fmtNumber(l.qty)} ${g.unit}${Number(l.waste) ? ` (+${U.fmtNumber(l.waste)}% hao hụt)` : ''}`;
         }).join(' · ')}</span>`;
     }
 
@@ -32,7 +32,7 @@
         let worst = null;
         S.recipeOf(food).forEach(l => {
             const g = S.get('ingredients', l.ingredientId);
-            const portions = (Number(g.stock) || 0) / l.qty;
+            const portions = (Number(g.stock) || 0) / S.grossQty(l);
             if (!worst || portions < worst.portions) worst = { g, portions };
         });
         return worst ? worst.g : null;
@@ -69,14 +69,23 @@
                     <p class="field__error"></p>
                 </div>
                 <div class="field recipe__qty">
-                    <label class="sr-only" for="recipeQty-${n}">Lượng cho 1 phần</label>
+                    <label class="sr-only" for="recipeQty-${n}">Định mức tịnh cho 1 phần</label>
                     <div class="input-unit">
                         <input class="input" type="number" id="recipeQty-${n}" min="0" step="any" inputmode="decimal" placeholder="0,3" value="${line ? line.qty : ''}">
                         <span class="input-unit__suffix" data-unit>${current ? current.unit : ''}</span>
                     </div>
                     <p class="field__error"></p>
                 </div>
+                <div class="field recipe__waste">
+                    <label class="sr-only" for="recipeWaste-${n}">Hao hụt khi sơ chế (%)</label>
+                    <div class="input-unit input-unit--short">
+                        <input class="input" type="number" id="recipeWaste-${n}" min="0" max="99" step="any" inputmode="decimal" placeholder="0" value="${line && Number(line.waste) ? line.waste : ''}">
+                        <span class="input-unit__suffix">%</span>
+                    </div>
+                    <p class="field__error"></p>
+                </div>
                 ${UI.iconButton({ action: 'recipe-remove-row', icon: 'fa-xmark', label: 'Bỏ dòng nguyên liệu này', tone: 'danger', data: { row: n } })}
+                <p class="recipe__gross" data-gross></p>
             </div>`;
     }
 
@@ -84,30 +93,41 @@
         return [...document.querySelectorAll('#foodRecipe .recipe__row')].map(row => {
             const n = row.dataset.row;
             const qtyEl = U.byId('recipeQty-' + n);
+            const wasteEl = U.byId('recipeWaste-' + n);
             const ingredient = U.byId('recipeIng-' + n).value;
             const qty = qtyEl.value.trim();
+            const waste = wasteEl.value.trim();
             return {
                 row: n,
                 ingredientId: ingredient ? Number(ingredient) : null,
-                qty: qtyEl.validity.badInput ? NaN : (qty === '' ? '' : Number(qty))
+                qty: qtyEl.validity.badInput ? NaN : (qty === '' ? '' : Number(qty)),
+                waste: wasteEl.validity.badInput ? NaN : (waste === '' ? 0 : Number(waste))
             };
         });
     }
 
     function syncRecipeSummary() {
-        document.querySelectorAll('#foodRecipe .recipe__row').forEach(row => {
+        const all = readRecipeRows();
+        document.querySelectorAll('#foodRecipe .recipe__row').forEach((row, i) => {
             const g = S.get('ingredients', U.byId('recipeIng-' + row.dataset.row).value);
             row.querySelector('[data-unit]').textContent = g ? g.unit : '';
+            // Có hao hụt thì ghi rõ lượng thật sự xuất kho cho mỗi phần
+            const r = all[i];
+            const wasteOk = Number.isFinite(r.waste) && r.waste > 0 && r.waste < 100;
+            row.querySelector('[data-gross]').textContent = g && Number(r.qty) > 0 && wasteOk
+                ? `Định mức gộp (xuất kho): ${U.fmtNumber(S.grossQty(r))} ${g.unit} / phần` : '';
         });
-        const rows = readRecipeRows().filter(r => r.ingredientId && Number(r.qty) > 0);
-        U.byId('foodRecipeEmpty').hidden = !!document.querySelector('#foodRecipe .recipe__row');
+        const rows = all.filter(r => r.ingredientId && Number(r.qty) > 0);
+        const hasRows = !!document.querySelector('#foodRecipe .recipe__row');
+        U.byId('foodRecipeEmpty').hidden = hasRows;
+        U.byId('foodRecipeCols').hidden = !hasRows;
         const box = U.byId('foodRecipeSummary');
         if (!rows.length) {
             box.className = 'recipe__summary';
             box.textContent = 'Món chưa có định mức sẽ không tự trừ kho khi bán và giá vốn được tính bằng 0.';
             return;
         }
-        const cost = Math.round(U.sum(rows, r => r.qty * ((S.get('ingredients', r.ingredientId) || {}).price || 0)));
+        const cost = Math.round(U.sum(rows, r => S.grossQty({ qty: r.qty, waste: Number.isFinite(r.waste) ? r.waste : 0 }) * ((S.get('ingredients', r.ingredientId) || {}).price || 0)));
         const price = Number(U.byId('foodPrice').value) || 0;
         const profit = price - cost;
         const loss = price > 0 && profit <= 0;
@@ -133,6 +153,8 @@
             if (r.ingredientId) seen.add(r.ingredientId);
             const qtyError = r.qty === '' ? 'Nhập lượng cho 1 phần' : R.number({ above: 0, max: 1000, decimals: 3 })(r.qty);
             if (qtyError) errors['recipeQty-' + r.row] = qtyError;
+            const wasteError = R.number({ min: 0, max: 99, decimals: 2 })(r.waste);
+            if (wasteError) errors['recipeWaste-' + r.row] = wasteError;
         });
         return errors;
     }
@@ -187,7 +209,7 @@
         normalize: v => Object.assign({}, v, {
             recipe: v.recipe
                 .filter(r => r.ingredientId && Number(r.qty) > 0)
-                .map(r => ({ ingredientId: r.ingredientId, qty: S.round3(r.qty) }))
+                .map(r => ({ ingredientId: r.ingredientId, qty: S.round3(r.qty), waste: Math.round((Number(r.waste) || 0) * 100) / 100 }))
         }),
         canDelete: r => {
             const used = S.db.invoices.filter(i => i.items.some(it => Number(it.foodId) === r.id)).length;

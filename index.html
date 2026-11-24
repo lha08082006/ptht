@@ -10,11 +10,11 @@
     <link rel="stylesheet" href="assets/fonts/be-vietnam-pro.css">
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/fontawesome.min.css">
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/solid.min.css">
-    <link rel="stylesheet" href="css/tokens.css?v=13">
-    <link rel="stylesheet" href="css/base.css?v=13">
-    <link rel="stylesheet" href="css/layout.css?v=13">
-    <link rel="stylesheet" href="css/components.css?v=13">
-    <link rel="stylesheet" href="css/pages.css?v=13">
+    <link rel="stylesheet" href="css/tokens.css?v=14">
+    <link rel="stylesheet" href="css/base.css?v=14">
+    <link rel="stylesheet" href="css/layout.css?v=14">
+    <link rel="stylesheet" href="css/components.css?v=14">
+    <link rel="stylesheet" href="css/pages.css?v=14">
 </head>
 <body>
 
@@ -97,6 +97,7 @@
                 <button type="button" class="nav-group__toggle" data-action="toggle-group" aria-expanded="true"><i class="fas fa-boxes-stacked nav-group__icon" aria-hidden="true"></i><span class="nav-group__label">Quản lý kho hàng</span><i class="fas fa-chevron-down nav-group__chevron" aria-hidden="true"></i></button>
                 <div class="nav-group__items">
                     <button type="button" class="nav-link" data-action="navigate" data-page="ingredients" title="Nguyên liệu"><i class="fas fa-flask" aria-hidden="true"></i><span>Nguyên liệu</span></button>
+                    <button type="button" class="nav-link" data-action="navigate" data-page="bom" title="Định mức BOM"><i class="fas fa-sitemap" aria-hidden="true"></i><span>Định mức BOM</span></button>
                     <button type="button" class="nav-link" data-action="navigate" data-page="suppliers" title="Nhà cung cấp"><i class="fas fa-truck" aria-hidden="true"></i><span>Nhà cung cấp</span></button>
                     <button type="button" class="nav-link" data-action="navigate" data-page="inventory" title="Nhập / xuất kho"><i class="fas fa-warehouse" aria-hidden="true"></i><span>Nhập / xuất kho</span></button>
                 </div>
@@ -447,6 +448,46 @@
                 </div>
             </section>
 
+            <!-- ===== ĐỊNH MỨC NGUYÊN VẬT LIỆU (BOM) ===== -->
+            <section id="page-bom" class="page">
+                <header class="page-header">
+                    <h1 class="page-title"><span class="page-title__icon" aria-hidden="true"><i class="fas fa-sitemap"></i></span>Định mức nguyên vật liệu (BOM)</h1>
+                    <div class="page-actions"><button type="button" class="btn btn--primary" data-action="bom-export"><i class="fas fa-file-excel" aria-hidden="true"></i>Xuất Excel</button></div>
+                </header>
+                <div class="stat-grid stat-grid--4">
+                    <article class="stat stat--green"><span class="stat__icon" aria-hidden="true"><i class="fas fa-list-check"></i></span><div class="stat__body"><p class="stat__label">Món có định mức</p><p class="stat__value stat__value--md stat__value--fit" id="bomCovered">0/0</p><p class="stat__sub" id="bomCoveredSub"></p></div></article>
+                    <article class="stat stat--gold"><span class="stat__icon" aria-hidden="true"><i class="fas fa-coins"></i></span><div class="stat__body"><p class="stat__label">Giá vốn trung bình / phần</p><p class="stat__value stat__value--md stat__value--fit" id="bomAvgCost">0đ</p><p class="stat__sub" id="bomAvgCostSub"></p></div></article>
+                    <article class="stat stat--blue"><span class="stat__icon" aria-hidden="true"><i class="fas fa-percent"></i></span><div class="stat__body"><p class="stat__label">Biên lãi gộp trung bình</p><p class="stat__value stat__value--md stat__value--fit" id="bomAvgMargin">0%</p><p class="stat__sub" id="bomAvgMarginSub"></p></div></article>
+                    <article class="stat stat--red"><span class="stat__icon" aria-hidden="true"><i class="fas fa-scale-unbalanced"></i></span><div class="stat__body"><p class="stat__label" title="Xuất tay (hàng hỏng, dùng nội bộ) + thiếu khi kiểm kê, so với lượng xuất theo định mức">Vượt định mức trong kỳ</p><p class="stat__value stat__value--md stat__value--fit" id="bomLoss">0đ</p><p class="stat__sub" id="bomLossSub"></p></div></article>
+                </div>
+                <div class="card">
+                    <div class="card__header"><h2 class="card__title"><i class="fas fa-chart-bar" aria-hidden="true"></i>Biên lãi gộp theo món</h2><span class="card__subtitle">Thấp nhất ở trên · (giá bán − giá vốn theo định mức) / giá bán</span></div>
+                    <div class="chart" id="bomMarginChart"></div>
+                </div>
+                <div class="card">
+                    <div class="toolbar">
+                        <div class="tabs" role="group" aria-label="Chế độ xem định mức" data-tabs="bom">
+                            <button type="button" class="tab is-active" data-action="bom-view" data-filter="food" aria-pressed="true">Theo món</button>
+                            <button type="button" class="tab" data-action="bom-view" data-filter="ingredient" aria-pressed="false">Theo nguyên liệu</button>
+                            <button type="button" class="tab" data-action="bom-view" data-filter="variance" aria-pressed="false">Định mức – thực tế</button>
+                        </div>
+                        <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm trong định mức</span><input type="search" id="searchBom" placeholder="Tìm món hoặc nguyên liệu…" autocomplete="off" data-rerender="bom"></label>
+                        <form class="range" id="bomRangeForm" data-form="bom-range" novalidate hidden>
+                            <span class="range__field"><label class="range__label" for="bomFrom">Từ</label><input type="date" class="input" id="bomFrom" data-rerender="bom"></span>
+                            <span class="range__field"><label class="range__label" for="bomTo">Đến</label><input type="date" class="input" id="bomTo" data-rerender="bom"></span>
+                            <button type="submit" class="btn btn--primary btn--sm"><i class="fas fa-rotate" aria-hidden="true"></i>Xem</button>
+                        </form>
+                    </div>
+                    <p class="bom-note" id="bomNote"></p>
+                    <div class="table-wrap">
+                        <table class="table bom-table" id="bomTable">
+                            <thead id="bomHead"></thead>
+                            <tbody id="bomBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
             <!-- ===== NHÀ CUNG CẤP ===== -->
             <section id="page-suppliers" class="page">
                 <header class="page-header">
@@ -471,7 +512,10 @@
             <section id="page-inventory" class="page">
                 <header class="page-header">
                     <h1 class="page-title"><span class="page-title__icon" aria-hidden="true"><i class="fas fa-warehouse"></i></span>Nhập / xuất kho</h1>
-                    <div class="page-actions"><button type="button" class="btn btn--primary" data-action="receipt-add"><i class="fas fa-plus" aria-hidden="true"></i>Tạo phiếu</button></div>
+                    <div class="page-actions">
+                        <button type="button" class="btn btn--ghost" data-action="stocktake-open"><i class="fas fa-clipboard-check" aria-hidden="true"></i>Kiểm kê kho</button>
+                        <button type="button" class="btn btn--primary" data-action="receipt-add"><i class="fas fa-plus" aria-hidden="true"></i>Tạo phiếu</button>
+                    </div>
                 </header>
                 <div class="card">
                     <div class="toolbar">
@@ -480,6 +524,7 @@
                             <button type="button" class="tab" data-action="inventory-filter" data-filter="import" aria-pressed="false">Nhập kho <span class="tab__count" data-count="import">0</span></button>
                             <button type="button" class="tab" data-action="inventory-filter" data-filter="export" aria-pressed="false">Xuất tay <span class="tab__count" data-count="export">0</span></button>
                             <button type="button" class="tab" data-action="inventory-filter" data-filter="sale" aria-pressed="false">Xuất bán <span class="tab__count" data-count="sale">0</span></button>
+                            <button type="button" class="tab" data-action="inventory-filter" data-filter="stocktake" aria-pressed="false">Kiểm kê <span class="tab__count" data-count="stocktake">0</span></button>
                         </div>
                         <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm phiếu kho</span><input type="search" id="searchReceipt" placeholder="Tìm theo mã phiếu, mã HĐ, nguyên liệu, NCC, ghi chú…" autocomplete="off" data-rerender="inventory"></label>
                     </div>
@@ -711,7 +756,7 @@
 
 <!-- Món ăn -->
 <div id="foodModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="foodModalTitle">
-    <div class="modal__dialog" tabindex="-1">
+    <div class="modal__dialog modal__dialog--lg" tabindex="-1">
         <form class="modal__form" data-crud="foods" novalidate>
             <header class="modal__header">
                 <h2 class="modal__title" id="foodModalTitle"><i class="fas fa-burger" aria-hidden="true"></i><span data-modal-title>Món ăn</span></h2>
@@ -728,8 +773,9 @@
                         <select class="input" id="foodStatus"><option value="available">Có sẵn</option><option value="unavailable">Hết món</option></select>
                     </div>
                     <fieldset class="recipe field--full">
-                        <legend class="recipe__title">Định mức nguyên liệu cho 1 phần</legend>
-                        <p class="recipe__hint">Lượng tính theo đơn vị của từng nguyên liệu (ví dụ 0,3 kg; 1 lon). Gửi đơn xuống bếp sẽ tự trừ kho theo định mức này.</p>
+                        <legend class="recipe__title">Định mức nguyên vật liệu (BOM) cho 1 phần</legend>
+                        <p class="recipe__hint">Định mức tịnh tính theo đơn vị của từng nguyên liệu (ví dụ 0,3 kg; 1 lon). Hao hụt là phần bỏ đi khi sơ chế: định mức gộp = tịnh × (1 + hao hụt) là lượng thật sự xuất kho mỗi khi gửi đơn xuống bếp.</p>
+                        <div class="recipe__cols" id="foodRecipeCols" aria-hidden="true" hidden><span>Nguyên liệu</span><span>Định mức tịnh / phần</span><span>Hao hụt</span></div>
                         <div class="recipe__rows" id="foodRecipe"></div>
                         <p class="recipe__empty" id="foodRecipeEmpty">Chưa có nguyên liệu nào.</p>
                         <button type="button" class="btn btn--ghost btn--sm" id="foodRecipeAdd" data-action="recipe-add-row"><i class="fas fa-plus" aria-hidden="true"></i>Thêm nguyên liệu</button>
@@ -950,6 +996,34 @@
 </div>
 
 <!-- Hộp xác nhận dùng chung -->
+<!-- Kiểm kê kho -->
+<div id="stocktakeModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="stocktakeModalTitle">
+    <div class="modal__dialog modal__dialog--lg" tabindex="-1">
+        <form class="modal__form" data-form="stocktake" novalidate>
+            <header class="modal__header">
+                <h2 class="modal__title" id="stocktakeModalTitle"><i class="fas fa-clipboard-check" aria-hidden="true"></i><span data-modal-title>Kiểm kê kho</span></h2>
+                <button type="button" class="icon-btn icon-btn--round" data-close aria-label="Đóng"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+            </header>
+            <div class="modal__body">
+                <div class="form-grid">
+                    <div class="field"><span class="field__label">Ngày kiểm kê</span><p class="stocktake-date" id="stkDateText"></p></div>
+                    <div class="field"><label class="field__label" for="stkEmp">Người kiểm kê</label><select class="input" id="stkEmp"></select></div>
+                    <div class="field field--full"><label class="field__label" for="stkNote">Ghi chú</label><input class="input" type="text" id="stkNote" maxlength="120" placeholder="Ví dụ: kiểm kê cuối ca tối" autocomplete="off"><p class="field__error"></p></div>
+                </div>
+                <p class="stocktake-hint">Nhập số lượng đếm được thực tế. Dòng nào lệch sổ sách sẽ sinh phiếu điều chỉnh (thừa → cộng kho, thiếu → trừ kho) và được tính vào báo cáo <em>Định mức – thực tế</em>.</p>
+                <div class="table-wrap">
+                    <table class="table table--compact stocktake-table">
+                        <thead><tr><th>Nguyên liệu</th><th class="num">Tồn sổ sách</th><th class="num">Tồn thực tế</th><th class="num">Chênh lệch</th></tr></thead>
+                        <tbody id="stocktakeBody"></tbody>
+                    </table>
+                </div>
+                <p class="stocktake-summary" id="stocktakeSummary" aria-live="polite"></p>
+            </div>
+            <footer class="modal__footer"><button type="button" class="btn btn--ghost" data-close>Hủy</button><button type="submit" class="btn btn--secondary"><i class="fas fa-floppy-disk" aria-hidden="true"></i>Lưu kiểm kê</button></footer>
+        </form>
+    </div>
+</div>
+
 <div id="confirmModal" class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
     <div class="modal__dialog modal__dialog--sm" tabindex="-1">
         <div class="modal__body">
@@ -967,21 +1041,23 @@
 </div>
 
 <script src="assets/vendor/qrcode-generator/qrcode.js"></script>
-<script src="js/core/utils.js?v=13"></script>
-<script src="js/core/data.js?v=13"></script>
-<script src="js/core/store.js?v=13"></script>
-<script src="js/core/ui.js?v=13"></script>
-<script src="js/core/validate.js?v=13"></script>
-<script src="js/core/charts.js?v=13"></script>
-<script src="js/core/crud.js?v=13"></script>
-<script src="js/pages/tong-quan.js?v=13"></script>
-<script src="js/pages/khach-hang.js?v=13"></script>
-<script src="js/pages/ban-hang.js?v=13"></script>
-<script src="js/pages/goi-mon.js?v=13"></script>
-<script src="js/pages/nha-bep.js?v=13"></script>
-<script src="js/pages/kho.js?v=13"></script>
-<script src="js/pages/xe-dua-don.js?v=13"></script>
-<script src="js/pages/bao-cao.js?v=13"></script>
-<script src="js/app.js?v=13"></script>
+<script src="js/core/utils.js?v=14"></script>
+<script src="js/core/data.js?v=14"></script>
+<script src="js/core/store.js?v=14"></script>
+<script src="js/core/ui.js?v=14"></script>
+<script src="js/core/validate.js?v=14"></script>
+<script src="js/core/charts.js?v=14"></script>
+<script src="js/core/crud.js?v=14"></script>
+<script src="js/core/xlsx.js?v=14"></script>
+<script src="js/pages/tong-quan.js?v=14"></script>
+<script src="js/pages/khach-hang.js?v=14"></script>
+<script src="js/pages/ban-hang.js?v=14"></script>
+<script src="js/pages/goi-mon.js?v=14"></script>
+<script src="js/pages/nha-bep.js?v=14"></script>
+<script src="js/pages/kho.js?v=14"></script>
+<script src="js/pages/bom.js?v=14"></script>
+<script src="js/pages/xe-dua-don.js?v=14"></script>
+<script src="js/pages/bao-cao.js?v=14"></script>
+<script src="js/app.js?v=14"></script>
 </body>
 </html>

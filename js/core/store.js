@@ -228,11 +228,16 @@
             return db.foods.filter(f => store.recipeOf(f).some(l => Number(l.ingredientId) === Number(ingredientId)));
         },
 
-        /** Giá vốn 1 phần theo đơn giá nguyên liệu hiện tại; null nếu món chưa có định mức */
+        /** Định mức gộp (lượng thật sự xuất kho) = định mức tịnh × (1 + hao hụt %) */
+        grossQty(line) {
+            return round3((Number(line.qty) || 0) * (1 + (Number(line.waste) || 0) / 100));
+        },
+
+        /** Giá vốn 1 phần theo đơn giá nguyên liệu hiện tại (tính trên định mức gộp); null nếu món chưa có định mức */
         foodCost(food) {
             const recipe = store.recipeOf(food);
             if (!recipe.length) return null;
-            return Math.round(U.sum(recipe, l => l.qty * store.get('ingredients', l.ingredientId).price));
+            return Math.round(U.sum(recipe, l => store.grossQty(l) * store.get('ingredients', l.ingredientId).price));
         },
 
         /** Tổng nguyên liệu cần cho các dòng món [{ foodId, qty }] → Map(mã nguyên liệu → lượng) */
@@ -240,7 +245,7 @@
             const need = new Map();
             lines.forEach(line => store.recipeOf(store.get('foods', line.foodId)).forEach(l => {
                 const id = Number(l.ingredientId);
-                need.set(id, round3((need.get(id) || 0) + l.qty * line.qty));
+                need.set(id, round3((need.get(id) || 0) + store.grossQty(l) * line.qty));
             }));
             return need;
         },
@@ -255,7 +260,7 @@
             return Math.max(0, Math.min(...recipe.map(l => {
                 const g = store.get('ingredients', l.ingredientId);
                 const free = (Number(g.stock) || 0) - (reserved ? reserved.get(Number(g.id)) || 0 : 0);
-                return Math.floor(round3(free / l.qty) + 1e-9);
+                return Math.floor(round3(free / store.grossQty(l)) + 1e-9);
             })));
         },
 
@@ -290,6 +295,42 @@
                 if (!wasLow && store.stockLevel(g) === 'low') newlyLow.push(g);
             });
             return newlyLow;
+        },
+
+        /** Loại phiếu kho: nhập, xuất bán (tự động theo định mức), xuất tay, điều chỉnh kiểm kê (dùng cho bộ lọc phiếu kho) */
+        receiptKind(r) {
+            if (r.stocktake) return 'stocktake';
+            if (r.type === 'import') return 'import';
+            return r.auto ? 'sale' : 'export';
+        },
+
+        /**
+         * Đối chiếu định mức – thực tế của từng nguyên liệu trong kỳ [from, to] (theo phiếu kho):
+         *   tồn đầu + nhập − xuất theo định mức − xuất tay ± chênh lệch kiểm kê = tồn cuối
+         *   dùng thực tế = xuất theo định mức + xuất tay − chênh lệch kiểm kê
+         *   vượt định mức = dùng thực tế − xuất theo định mức (hàng hỏng, thất thoát…)
+         */
+        bomVariance(from, to) {
+            const signed = r => (r.type === 'import' ? r.qty : -r.qty);
+            return db.ingredients.map(g => {
+                const own = db.receipts.filter(r => Number(r.ingredientId) === g.id);
+                const inRange = own.filter(r => r.date >= from && r.date <= to);
+                const sumKind = kind => round3(U.sum(inRange.filter(r => store.receiptKind(r) === kind), r => r.qty));
+                const opening = round3(U.sum(own.filter(r => r.date < from), signed));
+                const imported = sumKind('import');
+                const bom = sumKind('sale');
+                const manual = sumKind('export');
+                const counted = round3(U.sum(inRange.filter(r => r.stocktake), signed)); // + thừa, − thiếu
+                const actual = round3(bom + manual - counted);
+                const over = round3(actual - bom);
+                return {
+                    ingredient: g, opening, imported, bom, manual, counted, actual, over,
+                    closing: round3(opening + imported - bom - manual + counted),
+                    overValue: Math.round(over * g.price),
+                    bomValue: Math.round(bom * g.price),
+                    overRatio: bom > 0 ? over / bom : null
+                };
+            });
         },
 
         /** Giá vốn của một dòng món trên hóa đơn (giá vốn chốt lúc bán; dữ liệu cũ thì tính theo định mức hiện tại) */

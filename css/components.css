@@ -565,6 +565,11 @@ select.input {
     padding-right: 52px;
 }
 
+/* Đơn vị một ký tự (%) chỉ cần chừa ít chỗ */
+.input-unit--short .input {
+    padding-right: 30px;
+}
+
 .input-unit__suffix {
     position: absolute;
     top: 50%;
@@ -608,11 +613,33 @@ select.input {
     display: none;
 }
 
-.recipe__row {
+.recipe__row,
+.recipe__cols {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 150px auto;
+    grid-template-columns: minmax(0, 1fr) 150px 100px 36px;
     align-items: start;
     gap: var(--sp-2);
+}
+
+.recipe__cols {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: var(--text-3);
+}
+
+.recipe__cols[hidden] {
+    display: none;
+}
+
+.recipe__gross {
+    grid-column: 1 / -1;
+    margin-top: -2px;
+    font-size: var(--fs-xs);
+    color: var(--info);
+}
+
+.recipe__gross:empty {
+    display: none;
 }
 
 .recipe__row .icon-btn {
@@ -654,7 +681,11 @@ select.input {
     }
 
     .recipe__row {
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr) 96px 36px;
+    }
+
+    .recipe__cols {
+        display: none;
     }
 
     .recipe__ing {
