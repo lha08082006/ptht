@@ -15,8 +15,8 @@ Hệ thống được thiết kế theo luồng quy trình thực tế từ ti�
 
 ### 0. Tổng quan & tiện ích chung
 - **Thẻ "Hôm nay":** doanh thu đã thu trong ngày, so với **cùng giờ hôm qua** (không so với cả ngày hôm qua), biểu đồ 7 ngày gần nhất.
-- **Việc cần xử lý** (trên trang Tổng quan và ở nút chuông): đơn bếp mới, đặt bàn chờ xác nhận, nguyên liệu sắp hết, khách đặt sắp đến, hóa đơn chờ thanh toán, chuyến xe đang chạy — bấm vào là mở đúng trang.
-- **Lưu dữ liệu ngay trong trình duyệt:** tải lại trang (F5) hay tắt mở lại vẫn còn dữ liệu và không bị đăng xuất; nút **Khôi phục dữ liệu mẫu** để làm lại từ đầu.
+- **Việc cần xử lý** (trên trang Tổng quan và ở nút chuông): đơn bếp mới, đặt bàn chờ xác nhận, nguyên liệu sắp hết, yêu cầu đưa đón cần giao xe hoặc đã lỡ giờ đón, khách đặt sắp đến, hóa đơn chờ thanh toán, chuyến xe đang chạy — bấm vào là mở đúng trang.
+- **Lưu dữ liệu ngay trong trình duyệt:** tải lại trang (F5) hay tắt mở lại vẫn còn dữ liệu và không bị đăng xuất; nút **Khôi phục dữ liệu mẫu** để làm lại từ đầu. Dữ liệu mẫu chưa ai sửa mà mở lại vào ngày hôm sau sẽ tự tạo lại theo ngày mới; dữ liệu đã sửa thì giữ nguyên và lúc đăng nhập web báo rõ dữ liệu được lưu lúc nào.
 - **Tìm kiếm không cần gõ dấu** ở mọi danh sách (khách hàng, nhân viên, đặt bàn, món, hóa đơn, voucher, nguyên liệu, nhà cung cấp, phiếu kho, xe).
 - **Dữ liệu dùng lâu không làm chậm web:** bảng dài (hóa đơn, phiếu kho…) hiện 50 dòng đầu kèm nút **Xem thêm**; bếp chỉ hiện đơn hoàn thành trong ngày; lịch đặt bàn đã qua xuống cuối danh sách và gắn nhãn *Quá hạn*.
 - **Điện thoại:** menu trượt, bảng tự cuộn ngang, thanh giỏ hàng nổi ở trang Gọi món.
@@ -47,7 +47,7 @@ Hệ thống được thiết kế theo luồng quy trình thực tế từ ti�
 
 ### 6. Xe đưa đón khách
 - **Quản lý xe:** Biển số, loại xe, số chỗ, trạng thái.
-- **Yêu cầu đưa đón:** Tạo yêu cầu (không nhận giờ đón đã qua), giao xe (xe sẵn sàng nhỏ nhất đủ chỗ + tài xế đang rảnh), **hủy yêu cầu** khi khách báo không cần đón, theo dõi chuyến xe, **hoàn tất chuyến** (xe về *Sẵn sàng*, tài xế rảnh để nhận chuyến khác).
+- **Yêu cầu đưa đón:** Tạo yêu cầu (bắt buộc giờ đón, điền sẵn khoảng 30 phút nữa, không nhận giờ đã qua), giao xe (xe sẵn sàng nhỏ nhất đủ chỗ + tài xế đang rảnh) **trong vòng 3 giờ trước giờ đón** để xe không bị giữ quá sớm, trễ giờ đón thì ghi *Trễ N phút*, quá giờ đón hơn 1 giờ mà chưa có xe thì chuyển *Quá giờ đón* và chỉ còn hủy; **hủy yêu cầu** khi khách báo không cần đón, theo dõi chuyến xe (ghi rõ ngày khi không phải hôm nay), **hoàn tất chuyến** (xe về *Sẵn sàng*, tài xế rảnh để nhận chuyến khác).
 
 ### 7. Báo cáo - Thống kê
 - **Báo cáo tài chính:** Doanh thu theo khoảng ngày, **tính theo ngày thanh toán** (hóa đơn lập hôm qua nhưng trả hôm nay được tính vào hôm nay; bảng ghi cả Ngày lập và Ngày TT); **lãi gộp = doanh thu − giá vốn** (giá vốn chốt lúc bán); biểu đồ tự gom theo ngày (≤ 31 ngày), tuần hoặc tháng khi chọn khoảng dài; tỷ lệ thanh toán, phương thức thanh toán, nguyên liệu tiêu thụ (theo phiếu xuất kho), chi tiết hóa đơn.
@@ -60,7 +60,7 @@ Hệ thống được thiết kế theo luồng quy trình thực tế từ ti�
 
 ```text
 ptht/
-├── index.html                  # Giao diện chính (18 trang + các hộp thoại)
+├── index.html                  # Giao diện chính (19 trang + các hộp thoại)
 ├── css/
 │   ├── tokens.css              # Màu thương hiệu (xanh đậm / vàng), cỡ chữ, khoảng cách, bo góc
 │   ├── base.css                # Reset, chữ, tiện ích dùng chung
@@ -124,13 +124,13 @@ ptht/
    - Tại phần **Branch**, chọn `main` (hoặc `master`) và thư mục `/(root)`, sau đó bấm **Save**.
    - Sau 1-2 phút, web sẽ được xuất bản live tại địa chỉ: `https://lha08082006.github.io/ptht/`.
 
-> **Lưu ý về dữ liệu:** Ứng dụng chạy hoàn toàn trên trình duyệt. Mọi thay đổi được lưu ngay vào bộ nhớ của trình duyệt (localStorage), nên tải lại trang (F5) hay tắt đi mở lại vẫn còn, và F5 không bị đăng xuất (đăng xuất hoặc đóng tab thì phải đăng nhập lại). Dữ liệu chỉ nằm trên đúng trình duyệt của máy đó — máy khác, trình duyệt khác hay cửa sổ ẩn danh sẽ có dữ liệu riêng. Muốn làm lại từ đầu: **Tổng quan → Khôi phục dữ liệu mẫu**. Dữ liệu mẫu lấy mốc theo ngày giờ lúc tạo (hóa đơn trong 7 ngày gần nhất, đặt bàn ở các ngày tới), nên các báo cáo lúc nào cũng có số liệu.
+> **Lưu ý về dữ liệu:** Ứng dụng chạy hoàn toàn trên trình duyệt. Mọi thay đổi được lưu ngay vào bộ nhớ của trình duyệt (localStorage), nên tải lại trang (F5) hay tắt đi mở lại vẫn còn, và F5 không bị đăng xuất (đăng xuất hoặc đóng tab thì phải đăng nhập lại). Dữ liệu chỉ nằm trên đúng trình duyệt của máy đó — máy khác, trình duyệt khác hay cửa sổ ẩn danh sẽ có dữ liệu riêng. Muốn làm lại từ đầu: **Tổng quan → Khôi phục dữ liệu mẫu**. Dữ liệu mẫu lấy mốc theo ngày giờ lúc tạo (hóa đơn trong 7 ngày gần nhất, đặt bàn ở các ngày tới), nên các báo cáo lúc nào cũng có số liệu. Nếu chưa sửa gì mà hôm sau mới mở lại, dữ liệu mẫu tự tạo lại theo ngày mới; đã sửa dữ liệu thì web giữ nguyên (khi đó số liệu "hôm nay" có thể trống — bấm **Khôi phục dữ liệu mẫu** nếu muốn số liệu mẫu theo hôm nay).
 
 ---
 
 ## 🧪 Kiểm Thử Tự Động
 
-Thư mục `tests/` chứa bộ kiểm thử mở thẳng `index.html` bằng trình duyệt tự động, bấm như người dùng thật và kiểm tra kết quả: đăng nhập, 18 trang, thêm / sửa / xóa, một vòng quy trình đầy đủ (đặt bàn → check-in → gọi món → bếp → thanh toán → báo cáo → xe → nhập kho), định mức món và trừ kho, lưu dữ liệu, mã QR, in hóa đơn, dữ liệu lớn 90 ngày, giao diện điện thoại… Chỉ cần khi muốn kiểm tra lại sau khi sửa code — chạy web thì không cần:
+Thư mục `tests/` chứa bộ kiểm thử mở thẳng `index.html` bằng trình duyệt tự động, bấm như người dùng thật và kiểm tra kết quả: đăng nhập, 19 trang, thêm / sửa / xóa, một vòng quy trình đầy đủ (đặt bàn → check-in → gọi món → bếp → thanh toán → báo cáo → xe → nhập kho), định mức món và trừ kho, lưu dữ liệu, mã QR, in hóa đơn, dữ liệu lớn 90 ngày, giao diện điện thoại… Chỉ cần khi muốn kiểm tra lại sau khi sửa code — chạy web thì không cần:
 
 ```bash
 cd tests
@@ -154,6 +154,6 @@ Chi tiết từng bộ kiểm thử: xem [`tests/README.md`](tests/README.md).
 - Gửi đơn xuống bếp trừ kho theo định mức gộp (đã tính hao hụt) của từng món; không gửi được nếu kho không đủ; giá vốn từng món được chốt lúc bán (đổi định mức hay giá nhập sau này không làm sai lãi của hóa đơn cũ).
 - Đối chiếu định mức: dùng thực tế = xuất theo định mức + xuất tay − chênh lệch kiểm kê; phần vượt định mức được tính tiền theo đơn giá nguyên liệu.
 - Không xóa được và không đổi được đơn vị tính của nguyên liệu đang có trong định mức món; lượng định mức, định mức tồn và số lượng phiếu kho nhận tối đa 3 chữ số thập phân.
-- Mỗi xe và mỗi tài xế chỉ chạy một chuyến tại một thời điểm; xe đang chạy chuyến không đổi được trạng thái cho tới khi hoàn tất chuyến.
+- Mỗi xe và mỗi tài xế chỉ chạy một chuyến tại một thời điểm; xe đang chạy chuyến không đổi được trạng thái cho tới khi hoàn tất chuyến; chỉ giao xe trong khoảng từ 3 giờ trước tới 1 giờ sau giờ đón.
 - Doanh thu ghi nhận theo ngày thanh toán; hóa đơn chưa thanh toán chỉ hiện ở mục *Chờ thanh toán*.
 - Không xóa được bản ghi đang được dùng (ví dụ: khách hàng đã có hóa đơn, nguyên liệu đã có phiếu kho); hệ thống báo rõ lý do.

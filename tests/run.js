@@ -14,7 +14,8 @@ const SUITES = [
     ['bom', 'Phân hệ định mức BOM'],
     ['du-lieu-lon', 'Dữ liệu lớn (90 ngày)'],
     ['quy-trinh', 'Một vòng quy trình đầy đủ'],
-    ['ra-soat', 'Rà soát logic & giao diện']
+    ['ra-soat', 'Rà soát logic & giao diện'],
+    ['gio-that', 'Giờ thật & dữ liệu để qua ngày']
 ];
 
 (async () => {

@@ -11,6 +11,7 @@ Bộ kiểm thử mở thẳng `../index.html` (qua `file://`, giống cách ng�
 | `bom.js` | Phân hệ định mức BOM: trang BOM 3 chế độ xem, hao hụt % và định mức gộp, sửa định mức ngay trên trang, trừ kho theo định mức gộp, kiểm kê kho (phiếu điều chỉnh), đối chiếu định mức – thực tế, xuất Excel (.xlsx) |
 | `du-lieu-lon.js` | Giả lập quán chạy 90 ngày (~1.000 hóa đơn, ~4.000 phiếu kho): phân trang "Xem thêm", bếp chỉ hiện đơn xong hôm nay, đặt bàn quá hạn, số liệu dài vẫn vừa thẻ, báo khi bộ nhớ trình duyệt đầy |
 | `ra-soat.js` | Rà soát logic & giao diện: không còn "Quên mật khẩu", menu "Quản lý nhân viên" riêng, đặt bàn theo ngày giờ (trùng lịch 3 giờ, quá hạn, check-in từ sơ đồ bàn), hủy món chưa chế biến (hoàn kho), hỏi lại khi thanh toán lúc bếp chưa xong, hủy yêu cầu đưa đón, hạng khách hàng, hiệu suất nhân viên, đơn giá nhập thực tế |
+| `gio-that.js` | Giờ thật & dữ liệu để qua ngày: quét cả 19 trang lúc 00:20, 07:30, 23:55 (không NaN/undefined, không hóa đơn/phiếu ở tương lai); mở lại web hôm sau (dữ liệu mẫu chưa sửa tự tạo lại, dữ liệu đã sửa giữ nguyên và báo lúc lưu); yêu cầu đưa đón: bắt buộc giờ đón, chỉ giao xe trong 3 giờ trước giờ đón, trễ / quá giờ đón, nhắc ở Việc cần xử lý và chuông |
 | `quy-trinh.js` | Một vòng quy trình đầy đủ chỉ bằng thao tác giao diện: đặt bàn → xác nhận → mã QR → check-in → gọi món + voucher → bếp → gọi thêm → thanh toán → in → báo cáo → xe đưa đón → nhập kho → F5 |
 | `lib.js` | Hàm dùng chung (mở trang, đăng nhập, đọc lỗi dưới ô, chụp màn hình…) |
 | `run.js` | Chạy lần lượt các bộ và in tổng kết |
@@ -55,6 +56,6 @@ SHOTS_DIR=anh-chup npm test
 
 ## Ghi chú
 
-- Mọi trang kiểm thử chạy ở **giờ cố định 19:00 ngày 24/11/2026 (giờ Việt Nam)**, nên kết quả không phụ thuộc lúc chạy; dữ liệu mẫu luôn được tạo theo mốc đó. Riêng một vài mục cố ý đổi giờ (02:00 sáng, 20:05, 23:55) để kiểm tra các trường hợp sát nửa đêm.
+- Mọi trang kiểm thử chạy ở **giờ cố định 19:00 ngày 24/11/2026 (giờ Việt Nam)**, nên kết quả không phụ thuộc lúc chạy; dữ liệu mẫu luôn được tạo theo mốc đó. Riêng một vài mục cố ý đổi giờ (00:20, 02:00 sáng, 07:30, 20:05, 23:55, hoặc mở lại vào ngày hôm sau) để kiểm tra các trường hợp sát nửa đêm và dữ liệu để qua ngày.
 - Mỗi lần mở trang là một hồ sơ trình duyệt mới (bộ nhớ trình duyệt trống), nên các bộ không ảnh hưởng lẫn nhau và không đụng tới dữ liệu bạn đang dùng trên trình duyệt của mình.
 - Bộ kiểm thử cũng bắt lỗi JavaScript trên console và mọi yêu cầu tải tài nguyên từ Internet (web phải chạy được khi không có mạng).
