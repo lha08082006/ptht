@@ -13,7 +13,8 @@ const SUITES = [
     ['dinh-muc', 'Định mức món ăn & trừ kho'],
     ['bom', 'Phân hệ định mức BOM'],
     ['du-lieu-lon', 'Dữ liệu lớn (90 ngày)'],
-    ['quy-trinh', 'Một vòng quy trình đầy đủ']
+    ['quy-trinh', 'Một vòng quy trình đầy đủ'],
+    ['ra-soat', 'Rà soát logic & giao diện']
 ];
 
 (async () => {

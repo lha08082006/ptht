@@ -8,7 +8,7 @@
    Giờ chạy cố định 19:00 (xem lib.js) nên đặt bàn RES004 luôn là 21:00 hôm nay.
    Chạy riêng: node tests/chuc-nang.js
    ========================================================= */
-const { openApp, login, state, go, isOpen, fieldError, lastToast, submit, rowCount, shot, runStandalone } = require('./lib');
+const { openApp, login, state, go, isOpen, fieldError, lastToast, submit, rowCount, shot, payInvoice, runStandalone } = require('./lib');
 
 /** Đọc mã QR từ ảnh chụp màn hình (gói jsqr + pngjs) */
 function decodeQr(png) {
@@ -67,7 +67,7 @@ module.exports = async function chucNang(browser, check) {
     await a.click('[data-action="reset-data"]');
     await a.click('#confirmOk');
     await a.waitForTimeout(150);
-    check('Đồng ý → quay về dữ liệu mẫu', await state(a, () => !QN.store.db.customers.some(c => c.name === 'Khách Lưu Trữ') && QN.store.db.customers.length === QN.createSeedData().customers.length && QN.store.get('tables', 11).status === 'reserved'));
+    check('Đồng ý → quay về dữ liệu mẫu', await state(a, () => !QN.store.db.customers.some(c => c.name === 'Khách Lưu Trữ') && QN.store.db.customers.length === QN.createSeedData().customers.length && QN.store.get('tables', 4).status === 'reserved' && QN.store.get('reservations', 1).tableId === 11));
     await a.reload({ waitUntil: 'load' });
     check('F5 sau khi khôi phục: vẫn là dữ liệu mẫu', await state(a, () => !QN.store.db.customers.some(c => c.name === 'Khách Lưu Trữ')));
 
@@ -217,8 +217,7 @@ module.exports = async function chucNang(browser, check) {
         return { id, code: U.code('HD', id), today, yesterday, todayText: U.fmtDate(today), yesterdayText: U.fmtDate(yesterday), expected: U.fmtMoney(paidToday + 70000) };
     });
     await go(r, 'invoices');
-    await r.click(`[data-action="invoice-pay"][data-id="${inj.id}"]`);
-    await r.click('[data-action="pay-confirm"][data-method="Tiền mặt"]');
+    await payInvoice(r, inj.id, 'Tiền mặt');
     await r.waitForTimeout(100);
     check('Thanh toán HĐ lập hôm qua → ngày thanh toán là hôm nay', await state(r, x => { const i = QN.store.get('invoices', x.id); return i.status === 'paid' && QN.store.paidDate(i) === x.today; }, inj));
     await go(r, 'dashboard');

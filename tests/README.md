@@ -10,6 +10,7 @@ Bộ kiểm thử mở thẳng `../index.html` (qua `file://`, giống cách ng�
 | `dinh-muc.js` | Định mức món ăn: giá vốn, lãi gộp, số phần còn làm được, hộp thoại định mức, gửi bếp tự trừ kho (phiếu xuất bán), chặn gọi vượt tồn, cảnh báo chạm định mức, báo cáo lãi gộp, gom doanh thu theo tuần / tháng |
 | `bom.js` | Phân hệ định mức BOM: trang BOM 3 chế độ xem, hao hụt % và định mức gộp, sửa định mức ngay trên trang, trừ kho theo định mức gộp, kiểm kê kho (phiếu điều chỉnh), đối chiếu định mức – thực tế, xuất Excel (.xlsx) |
 | `du-lieu-lon.js` | Giả lập quán chạy 90 ngày (~1.000 hóa đơn, ~4.000 phiếu kho): phân trang "Xem thêm", bếp chỉ hiện đơn xong hôm nay, đặt bàn quá hạn, số liệu dài vẫn vừa thẻ, báo khi bộ nhớ trình duyệt đầy |
+| `ra-soat.js` | Rà soát logic & giao diện: không còn "Quên mật khẩu", menu "Quản lý nhân viên" riêng, đặt bàn theo ngày giờ (trùng lịch 3 giờ, quá hạn, check-in từ sơ đồ bàn), hủy món chưa chế biến (hoàn kho), hỏi lại khi thanh toán lúc bếp chưa xong, hủy yêu cầu đưa đón, hạng khách hàng, hiệu suất nhân viên, đơn giá nhập thực tế |
 | `quy-trinh.js` | Một vòng quy trình đầy đủ chỉ bằng thao tác giao diện: đặt bàn → xác nhận → mã QR → check-in → gọi món + voucher → bếp → gọi thêm → thanh toán → in → báo cáo → xe đưa đón → nhập kho → F5 |
 | `lib.js` | Hàm dùng chung (mở trang, đăng nhập, đọc lỗi dưới ô, chụp màn hình…) |
 | `run.js` | Chạy lần lượt các bộ và in tổng kết |

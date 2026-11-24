@@ -3,7 +3,7 @@
    9 LỖI ĐÃ SỬA (từ lần rà soát mã): mỗi mục tái hiện đúng tình huống gây lỗi.
    Chạy riêng: node tests/loi-review.js
    ========================================================= */
-const { openApp, runStandalone } = require('./lib');
+const { openApp, payInvoice, runStandalone } = require('./lib');
 
 const ev = (p, fn, a) => p.evaluate(fn, a);
 const open = (browser, now) => openApp(browser, now ? { now } : {});
@@ -34,10 +34,15 @@ module.exports = async function loiReview(browser, check) {
     await p.waitForTimeout(100);
     const invId = await ev(p, () => QN.store.pendingInvoicesOfTable(11).map(i => i.id).pop());
     await ev(p, () => QN.app.navigateTo('invoices'));
-    await p.click(`[data-action="invoice-pay"][data-id="${invId}"]`);
-    await p.click('[data-action="pay-confirm"][data-method="Tiền mặt"]');
-    const t11 = await ev(p, () => QN.store.get('tables', 11).status);
-    check('2. Bàn có đặt bàn đã xác nhận trở lại "Đã đặt" sau khi thanh toán', t11 === 'reserved', { t11 });
+    await payInvoice(p, invId, 'Tiền mặt');
+    const after2 = await ev(p, () => {
+        const S = QN.store, U = QN.utils;
+        const tomorrow = U.addDays(U.todayLocal(), 1);
+        const r = S.get('reservations', 1);
+        return { t11: S.get('tables', 11).status, res1: r.status + ':' + r.tableId, clash: S.tableBlockReason(S.get('tables', 11), { date: tomorrow, time: '19:00', guests: 2 }) };
+    });
+    // Lịch của RES001 là ngày mai: hôm nay bàn dùng bình thường, nhưng lịch ngày mai vẫn giữ và không bị xếp trùng giờ
+    check('2. Bàn có lịch đặt ngày mai: thanh toán xong vẫn giữ lịch, không xếp trùng giờ', after2.t11 === 'available' && after2.res1 === 'confirmed:11' && !!after2.clash, after2);
 
     // 3. Nhãn doanh thu nhỏ không hiện "0tr"
     const lbl = await ev(p, () => (QN.utils.fmtShortMoney || QN.utils.fmtMillions)(25000));
