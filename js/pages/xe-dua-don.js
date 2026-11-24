@@ -19,6 +19,8 @@
         label: 'xe',
         modal: 'vehicleModal',
         tbody: 'vehicleTableBody',
+        meta: 'vehiclesMeta',
+        search: { input: 'searchVehicle', fields: r => [r.plate, r.type] },
         fields: [
             { id: 'vehPlate', key: 'plate', type: 'upper' },
             { id: 'vehType', key: 'type' },
@@ -33,19 +35,26 @@
             { render: r => UI.statusBadge('vehicle', r.status) }
         ],
         display: r => r.plate,
-        validate: (v, existing) => V.check([
-            ['vehPlate', v.plate, R.required('Vui lòng nhập biển số'), R.maxLength(15),
-                R.unique(S.db.vehicles, x => x.plate, existing, 'Biển số này đã có trong danh sách', plateKey)],
-            ['vehType', v.type, R.maxLength(40)],
-            ['vehSeats', v.seats, R.required('Vui lòng nhập số chỗ'), R.integer({ min: 1, max: 50 })]
-        ]),
+        validate: (v, existing) => {
+            const trip = existing ? S.activeTripOfVehicle(existing.id) : null;
+            return V.check([
+                ['vehPlate', v.plate, R.required('Vui lòng nhập biển số'), R.maxLength(15),
+                    R.unique(S.db.vehicles, x => x.plate, existing, 'Biển số này đã có trong danh sách', plateKey)],
+                ['vehType', v.type, R.maxLength(40)],
+                ['vehSeats', v.seats, R.required('Vui lòng nhập số chỗ'), R.integer({ min: 1, max: 50 })],
+                // Xe đang chạy chuyến chỉ được về "Sẵn sàng" khi chuyến đã hoàn tất
+                ['vehStatus', v.status, s => (trip && s !== 'in_use'
+                    ? `Xe đang chạy chuyến đón ${S.customerName(trip.custId)} — bấm “Hoàn tất” ở trang Yêu cầu đưa đón trước`
+                    : null)]
+            ]);
+        },
         canDelete: r => {
             const used = S.db.trips.filter(t => Number(t.vehicleId) === r.id).length;
             return used ? `Không thể xóa xe ${r.plate}: xe đã có ${used} chuyến đưa đón.` : null;
         }
     });
 
-    /* ---------------- YÊU CẦU ĐƯA ĐÓN ---------------- */
+    /* ---------------- YÊU CẦU ĐƯA ĐÓN & CHUYẾN XE ---------------- */
     function renderDelivery() {
         UI.renderRows('deliveryTableBody', S.db.deliveryReqs.map((d, i) => html`
             <tr>
@@ -69,8 +78,13 @@
                 <td class="t-strong">${S.customerName(t.custId)}</td>
                 <td class="t-code">${S.vehiclePlate(t.vehicleId)}</td>
                 <td>${S.employeeName(t.driverId)}</td>
-                <td class="nowrap">${t.departure}</td>
+                <td class="nowrap">${t.departure}${t.completedAt ? html`<span class="t-sub">Xong lúc ${U.fmtDateTime(t.completedAt)}</span>` : ''}</td>
                 <td>${UI.statusBadge('trip', t.status)}</td>
+                <td class="num"><div class="cell-actions">
+                    ${t.status === 'Đang đón'
+                        ? html`<button type="button" class="btn btn--ghost btn--sm" data-action="trip-complete" data-id="${t.id}"><i class="fas fa-flag-checkered" aria-hidden="true"></i>Hoàn tất</button>`
+                        : html`<span class="text-muted">—</span>`}
+                </div></td>
             </tr>`), { empty: 'Chưa có chuyến xe nào' });
     }
 
@@ -110,24 +124,26 @@
         UI.closeModal('deliveryReqModal');
         UI.toast(`Đã tạo yêu cầu đưa đón cho ${S.customerName(v.custId)}`, 'success');
         renderDelivery();
+        QN.app.changed();
     };
 
     QN.actions['delivery-assign'] = d => {
         const req = S.get('deliveryReqs', d.id);
         if (!req || req.status !== 'pending') return;
-        // Xe sẵn sàng nhỏ nhất mà vẫn đủ chỗ
+        // Xe sẵn sàng (không đang chạy chuyến nào) nhỏ nhất mà vẫn đủ chỗ
+        const busyVehicles = new Set(S.activeTrips().map(t => Number(t.vehicleId)));
         const vehicle = S.db.vehicles
-            .filter(x => x.status === 'available' && x.seats >= req.guests)
+            .filter(x => x.status === 'available' && !busyVehicles.has(x.id) && x.seats >= req.guests)
             .sort((a, b) => a.seats - b.seats || a.id - b.id)[0];
         if (!vehicle) {
             UI.toast(`Không có xe sẵn sàng đủ ${req.guests} chỗ.`, 'error');
             return;
         }
         // Chỉ gán tài xế không đang chạy chuyến khác
-        const busy = new Set(S.activeTrips().map(t => Number(t.driverId)));
-        const driver = S.db.employees.find(e => e.role === 'Tài xế' && !busy.has(e.id));
+        const busyDrivers = new Set(S.activeTrips().map(t => Number(t.driverId)));
+        const driver = S.db.employees.find(e => e.role === 'Tài xế' && !busyDrivers.has(e.id));
         if (!driver) {
-            UI.toast('Tất cả tài xế đang chạy chuyến khác.', 'error');
+            UI.toast('Tất cả tài xế đang chạy chuyến khác. Hãy hoàn tất một chuyến trước.', 'error');
             return;
         }
         req.status = 'assigned';
@@ -138,6 +154,24 @@
         });
         UI.toast(`Đã giao xe ${vehicle.plate} (${vehicle.seats} chỗ), tài xế ${driver.name} cho ${S.customerName(req.custId)}`, 'success');
         renderDelivery();
+        UI.focusFallback();
+        QN.app.changed();
+    };
+
+    /** Hoàn tất chuyến: trả xe về "Sẵn sàng", tài xế rảnh, yêu cầu đưa đón "Hoàn tất" */
+    QN.actions['trip-complete'] = d => {
+        const trip = S.get('trips', d.id);
+        if (!trip || trip.status !== 'Đang đón') return;
+        trip.status = 'Hoàn tất';
+        trip.completedAt = U.nowDateTime();
+        const vehicle = S.get('vehicles', trip.vehicleId);
+        if (vehicle && vehicle.status === 'in_use') vehicle.status = 'available';
+        const req = trip.reqId ? S.get('deliveryReqs', trip.reqId) : null;
+        if (req && req.status === 'assigned') req.status = 'completed';
+        UI.toast(`Đã hoàn tất chuyến đón ${S.customerName(trip.custId)} — xe ${S.vehiclePlate(trip.vehicleId)} sẵn sàng`, 'success');
+        renderDelivery();
+        UI.focusFallback();
+        QN.app.changed();
     };
 
     QN.pages.delivery = { render: renderDelivery };

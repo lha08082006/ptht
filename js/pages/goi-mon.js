@@ -13,16 +13,49 @@
 
     let cart = []; // [{ foodId, name, category, price, qty }]
     let invoiceFilter = 'all';
+    let pendingTableId = null; // bàn được chọn sẵn (ví dụ sau khi check-in)
 
-    /* ---------------- GỌI MÓN ---------------- */
-    function cartTotals() {
-        const subtotal = U.sum(cart, c => c.price * c.qty);
+    /* ---------------- BỐI CẢNH ĐƠN: bàn đang có hóa đơn mở? ---------------- */
+    function orderContext() {
+        const tableId = Number(U.byId('orderTableSelect').value) || 0;
+        const open = tableId ? S.openInvoiceOfTable(tableId) : null;
         const voucherId = U.byId('orderVoucherSelect').value;
-        const voucher = voucherId ? S.get('vouchers', voucherId) : null;
-        const discount = voucher ? Math.round(subtotal * voucher.percent / 100) : 0;
-        return { subtotal, voucher, discount, total: subtotal - discount };
+        const selected = voucherId ? S.get('vouchers', voucherId) : null;
+        // Gọi thêm vào hóa đơn đã dùng voucher: món mới hưởng cùng mức giảm
+        const percent = open && open.voucher ? Number(open.voucherPercent) || 0 : (selected ? selected.percent : 0);
+        return { tableId, open, selected, percent };
     }
 
+    function cartTotals() {
+        const ctx = orderContext();
+        const subtotal = U.sum(cart, c => c.price * c.qty);
+        const discount = Math.round(subtotal * ctx.percent / 100);
+        const label = ctx.open && ctx.open.voucher ? ctx.open.voucher : (ctx.selected ? ctx.selected.id : '');
+        return { subtotal, discount, total: subtotal - discount, label };
+    }
+
+    function syncOrderContext() {
+        const ctx = orderContext();
+        const hint = U.byId('orderTableHint');
+        const voucherSelect = U.byId('orderVoucherSelect');
+        const voucherHint = U.byId('orderVoucherHint');
+        const submitLabel = U.byId('orderSubmitLabel');
+        if (ctx.open) {
+            hint.textContent = `Bàn đang có ${U.code('HD', ctx.open.id)} (${U.fmtMoney(ctx.open.finalTotal)}, chưa thanh toán) — món mới sẽ được gọi thêm vào hóa đơn này.`;
+            submitLabel.textContent = 'Gọi thêm vào ' + U.code('HD', ctx.open.id);
+        } else {
+            const hold = ctx.tableId ? S.holdsOfTable(ctx.tableId).find(r => r.date === U.todayLocal()) : null;
+            hint.textContent = hold ? `Bàn đang giữ cho ${U.code('RES', hold.id)} (${hold.name}, ${hold.time}).` : '';
+            submitLabel.textContent = 'Gửi đơn & tạo hóa đơn';
+        }
+        const locked = !!(ctx.open && ctx.open.voucher);
+        voucherSelect.disabled = locked;
+        if (locked) voucherSelect.value = '';
+        voucherHint.textContent = locked ? `Hóa đơn đã áp dụng voucher ${ctx.open.voucher} (giảm ${ctx.open.voucherPercent}%), món gọi thêm cũng được giảm.` : '';
+        renderCart();
+    }
+
+    /* ---------------- GỌI MÓN ---------------- */
     function qtyInCart(foodId) {
         const line = cart.find(c => c.foodId === foodId);
         return line ? line.qty : 0;
@@ -73,7 +106,7 @@
                     <div class="cart-item__controls">
                         <div class="qty" role="group" aria-label="Số lượng ${c.name}">
                             <button type="button" class="qty__btn" data-action="cart-dec" data-id="${c.foodId}" aria-label="Bớt 1 ${c.name}"><i class="fas fa-minus" aria-hidden="true"></i></button>
-                            <span class="qty__value" aria-live="polite">${c.qty}</span>
+                            <span class="qty__value">${c.qty}</span>
                             <button type="button" class="qty__btn" data-action="cart-inc" data-id="${c.foodId}" aria-label="Thêm 1 ${c.name}"><i class="fas fa-plus" aria-hidden="true"></i></button>
                         </div>
                         ${UI.iconButton({ action: 'cart-remove', icon: 'fa-trash', label: 'Bỏ ' + c.name, tone: 'danger', data: { id: c.foodId } })}
@@ -82,10 +115,16 @@
             : UI.emptyState('Chưa có món nào. Bấm vào món bên trái để thêm.', 'fa-cart-shopping');
 
         const t = cartTotals();
-        UI.setText('cartCount', U.sum(cart, c => c.qty) + ' món');
+        const count = U.sum(cart, c => c.qty);
+        UI.setText('cartCount', count + ' món');
         UI.setText('cartSubtotal', U.fmtMoney(t.subtotal));
-        UI.setText('cartDiscount', t.discount ? `−${U.fmtMoney(t.discount)} (${t.voucher.id})` : U.fmtMoney(0));
+        UI.setText('cartDiscount', t.discount ? `−${U.fmtMoney(t.discount)} (${t.label})` : U.fmtMoney(0));
         UI.setText('cartTotal', U.fmtMoney(t.total));
+
+        // Thanh giỏ hàng cố định ở đáy màn hình hẹp (khi giỏ nằm dưới thực đơn)
+        UI.setText('cartBarCount', count + ' món');
+        UI.setText('cartBarTotal', U.fmtMoney(t.total));
+        U.byId('cartBar').classList.toggle('is-empty', !cart.length);
     }
 
     function refreshOrderView() {
@@ -96,17 +135,24 @@
     }
 
     function bumpCartCount() {
-        const el = U.byId('cartCount');
-        el.classList.remove('is-bumped');
-        void el.offsetWidth; // khởi động lại hiệu ứng
-        el.classList.add('is-bumped');
+        ['cartCount', 'cartBarCount'].forEach(id => {
+            const el = U.byId(id);
+            el.classList.remove('is-bumped');
+            void el.offsetWidth; // khởi động lại hiệu ứng
+            el.classList.add('is-bumped');
+        });
     }
 
     function renderOrders() {
         const db = S.db;
-        UI.fillSelect('orderTableSelect', db.tables.map(t => ({
-            value: t.id, label: `${t.name} · ${t.zone} · ${t.seats} chỗ — ${S.STATUS.table[t.status].label}`
-        })), { placeholder: '— Chọn bàn —' });
+        UI.fillSelect('orderTableSelect', db.tables.map(t => {
+            const open = S.openInvoiceOfTable(t.id);
+            return { value: t.id, label: `${t.name} — ${S.STATUS.table[t.status].label}${open ? ' ' + U.code('HD', open.id) : ''} · ${t.seats} chỗ · ${t.zone}` };
+        }), { placeholder: '— Chọn bàn —' });
+        if (pendingTableId) {
+            U.byId('orderTableSelect').value = String(pendingTableId);
+            pendingTableId = null;
+        }
         UI.fillSelect('orderCustSelect', [{ value: 0, label: 'Khách lẻ' }]
             .concat(db.customers.map(c => ({ value: c.id, label: `${c.name} · ${c.phone}` }))));
         UI.fillSelect('orderEmpSelect', db.employees
@@ -116,7 +162,7 @@
             .filter(v => v.qty > 0)
             .map(v => ({ value: v.id, label: `${v.id} — giảm ${v.percent}% (còn ${v.qty})` })), { placeholder: 'Không dùng voucher' });
         renderMenu();
-        renderCart();
+        syncOrderContext();
     }
 
     function changeQty(foodId, delta) {
@@ -142,52 +188,106 @@
         cart = cart.filter(c => c.foodId !== Number(d.id));
         refreshOrderView();
     };
+    QN.actions['scroll-to-cart'] = () => {
+        const cartEl = U.byId('cartTitle');
+        cartEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const first = document.querySelector('#cartItems button') || U.byId('orderSubmitBtn');
+        if (first) first.focus({ preventScroll: true });
+    };
 
-    QN.actions['order-submit'] = () => {
+    function lineItems() {
+        return cart.map(c => ({ foodId: c.foodId, name: c.name, category: c.category, price: c.price, qty: c.qty }));
+    }
+
+    QN.actions['order-submit'] = async () => {
         if (!cart.length) {
             UI.toast('Chưa chọn món nào.', 'warning');
             return;
         }
-        const tableId = Number(U.byId('orderTableSelect').value) || 0;
+        const ctx = orderContext();
         const custId = Number(U.byId('orderCustSelect').value) || 0;
         const empId = Number(U.byId('orderEmpSelect').value) || 0;
-        const voucherId = U.byId('orderVoucherSelect').value;
-        const voucher = voucherId ? S.get('vouchers', voucherId) : null;
+        const voucher = ctx.selected;
         const errors = V.check([
-            ['orderTableSelect', tableId, v => (v ? null : 'Vui lòng chọn bàn')],
+            ['orderTableSelect', ctx.tableId, v => (v ? null : 'Vui lòng chọn bàn')],
             ['orderEmpSelect', empId, v => (v ? null : 'Vui lòng chọn nhân viên phục vụ')],
-            ['orderVoucherSelect', voucherId, v => (v && (!voucher || voucher.qty <= 0) ? 'Voucher đã hết lượt' : null)]
+            ['orderVoucherSelect', voucher, v => (v && v.qty <= 0 ? 'Voucher đã hết lượt' : null)]
         ]);
         if (V.show(U.byId('orderSelectors'), errors)) {
             UI.toast('Vui lòng kiểm tra lại thông tin đơn.', 'warning');
             return;
         }
 
-        const t = cartTotals();
-        const id = S.nextId('invoices');
-        const date = U.todayLocal();
+        const table = S.get('tables', ctx.tableId);
+        const today = U.todayLocal();
         const time = U.nowTime();
-        const items = cart.map(c => ({ foodId: c.foodId, name: c.name, category: c.category, price: c.price, qty: c.qty }));
-        S.db.invoices.push({
-            id, date, time, tableId, custId, empId, items,
-            total: t.subtotal, voucher: voucher ? voucher.id : '', discount: t.discount, finalTotal: t.total,
-            status: 'pending', payMethod: '', txId: '', paidAt: ''
-        });
+
+        // Bàn đang giữ cho một đặt bàn hôm nay: hỏi có phải khách của đặt bàn đó không
+        if (!ctx.open) {
+            const hold = S.holdsOfTable(ctx.tableId).find(r => r.date === today);
+            if (hold) {
+                const answer = await UI.confirm({
+                    title: `${table.name} đang giữ cho ${U.code('RES', hold.id)}`,
+                    message: `${hold.name} · ${hold.time} · ${hold.guests} người. Đây có phải khách của đặt bàn này không?`,
+                    confirmText: 'Đúng, khách đã đến',
+                    cancelText: 'Không, khách khác',
+                    tone: 'info',
+                    icon: 'fa-user-check',
+                    dismissValue: null
+                });
+                if (answer === null) return; // đóng hộp → không gửi đơn
+                if (answer) await QN.reservations.checkIn(hold, { offerOrder: false });
+            }
+        }
+
+        const items = lineItems();
+        let invoice = ctx.open;
+        if (invoice) {
+            // Gọi thêm món vào hóa đơn đang mở
+            items.forEach(it => {
+                const line = invoice.items.find(x => Number(x.foodId) === it.foodId && x.price === it.price);
+                if (line) line.qty += it.qty;
+                else invoice.items.push(it);
+            });
+            if (!invoice.voucher && voucher) {
+                invoice.voucher = voucher.id;
+                invoice.voucherPercent = voucher.percent;
+                voucher.qty -= 1;
+            }
+            if (!Number(invoice.custId) && custId) invoice.custId = custId;
+            invoice.total = U.sum(invoice.items, x => x.price * x.qty);
+            invoice.discount = Math.round(invoice.total * (Number(invoice.voucherPercent) || 0) / 100);
+            invoice.finalTotal = invoice.total - invoice.discount;
+        } else {
+            const subtotal = U.sum(items, x => x.price * x.qty);
+            const discount = voucher ? Math.round(subtotal * voucher.percent / 100) : 0;
+            invoice = {
+                id: S.nextId('invoices'), date: today, time, tableId: ctx.tableId, custId, empId, items,
+                total: subtotal, voucher: voucher ? voucher.id : '', voucherPercent: voucher ? voucher.percent : 0,
+                discount, finalTotal: subtotal - discount,
+                status: 'pending', payMethod: '', txId: '', paidAt: ''
+            };
+            S.db.invoices.push(invoice);
+            if (voucher) voucher.qty -= 1;
+        }
+
+        const added = U.sum(items, x => x.qty);
         S.db.kitchenOrders.push({
-            id: S.nextId('kitchenOrders'), invoiceId: id, tableId, status: 'new', time,
+            id: S.nextId('kitchenOrders'), invoiceId: invoice.id, tableId: ctx.tableId, status: 'new',
+            date: today, time, extra: !!ctx.open,
             items: items.map(it => ({ foodId: it.foodId, name: it.name, qty: it.qty }))
         });
-        const table = S.get('tables', tableId);
         if (table) table.status = 'occupied';
-        if (voucher) voucher.qty -= 1;
 
         cart = [];
         U.byId('orderTableSelect').value = '';
         U.byId('orderCustSelect').value = '0';
         U.byId('orderVoucherSelect').value = '';
-        UI.toast(`Đã gửi đơn xuống bếp và tạo hóa đơn ${U.code('HD', id)}`, 'success');
+        UI.toast(ctx.open
+            ? `Đã gọi thêm ${added} món vào ${U.code('HD', invoice.id)} (${table ? table.name : ''})`
+            : `Đã gửi đơn xuống bếp và tạo hóa đơn ${U.code('HD', invoice.id)}`, 'success');
         renderOrders();
-        QN.app.refreshBell();
+        QN.app.changed();
     };
 
     /* ---------------- HÓA ĐƠN ---------------- */
@@ -205,7 +305,9 @@
         UI.setText('invCountSub', `Hôm nay: ${all.filter(i => i.date === today).length} hóa đơn`);
         UI.syncTabs('invoices', invoiceFilter, { all: all.length, paid: paid.length, pending: pending.length });
 
-        const list = invoiceFilter === 'paid' ? paid : invoiceFilter === 'pending' ? pending : all;
+        const query = U.byId('searchInvoice').value.trim();
+        const list = (invoiceFilter === 'paid' ? paid : invoiceFilter === 'pending' ? pending : all)
+            .filter(inv => U.matches(query, U.code('HD', inv.id), S.customerName(inv.custId), S.tableName(inv.tableId), S.employeeName(inv.empId), inv.voucher, inv.payMethod));
         UI.renderRows('invoiceTableBody', list.map(inv => {
             const code = U.code('HD', inv.id);
             return html`
@@ -224,7 +326,9 @@
                         ${inv.status === 'pending' ? UI.iconButton({ action: 'invoice-pay', icon: 'fa-credit-card', label: 'Thanh toán ' + code, tone: 'success', data: { id: inv.id } }) : ''}
                     </div></td>
                 </tr>`;
-        }), { empty: invoiceFilter === 'all' ? 'Chưa có hóa đơn nào' : 'Không có hóa đơn ở trạng thái này' });
+        }), query
+            ? { empty: `Không tìm thấy hóa đơn cho “${query}”`, icon: 'fa-magnifying-glass' }
+            : { empty: invoiceFilter === 'all' ? 'Chưa có hóa đơn nào' : 'Không có hóa đơn ở trạng thái này' });
     }
 
     QN.actions['invoice-filter'] = d => {
@@ -260,7 +364,7 @@
                 </div>
                 <div class="invoice-sheet__totals">
                     <div class="invoice-sheet__row"><span>Tiền món</span><span>${U.fmtMoney(inv.total)}</span></div>
-                    ${inv.discount > 0 ? html`<div class="invoice-sheet__row invoice-sheet__row--discount"><span>Voucher ${inv.voucher}</span><span>−${U.fmtMoney(inv.discount)}</span></div>` : ''}
+                    ${inv.discount > 0 ? html`<div class="invoice-sheet__row invoice-sheet__row--discount"><span>Voucher ${inv.voucher}${inv.voucherPercent ? ' (' + inv.voucherPercent + '%)' : ''}</span><span>−${U.fmtMoney(inv.discount)}</span></div>` : ''}
                     <div class="invoice-sheet__row invoice-sheet__grand"><span>Tổng thanh toán</span><span>${U.fmtMoney(inv.finalTotal)}</span></div>
                 </div>
                 <div class="invoice-sheet__pay">
@@ -274,6 +378,15 @@
                 <p class="invoice-sheet__thanks">Cảm ơn quý khách và hẹn gặp lại!</p>
             </article>`;
         UI.openModal('invoiceDetailModal', { title: 'Chi tiết hóa đơn ' + U.code('HD', inv.id) });
+    };
+
+    /** In hóa đơn: chỉ in tờ hóa đơn trong hộp thoại (xem @media print trong pages.css) */
+    QN.actions['invoice-print'] = () => {
+        const body = document.body;
+        const cleanup = () => body.classList.remove('print-invoice');
+        body.classList.add('print-invoice');
+        window.addEventListener('afterprint', cleanup, { once: true });
+        window.print();
     };
 
     /* ---------------- THANH TOÁN ---------------- */
@@ -302,12 +415,12 @@
         inv.payMethod = d.method;
         inv.txId = 'TXN' + Date.now().toString(36).toUpperCase();
         inv.paidAt = U.nowDateTime();
-        // Chỉ trả bàn về "Trống" khi bàn không còn hóa đơn nào chờ thanh toán
+        // Bàn hết hóa đơn chờ: còn đặt bàn giữ chỗ thì về "Đã đặt", không thì "Trống"
         const table = S.get('tables', inv.tableId);
-        if (table && table.status === 'occupied' && !S.pendingInvoicesOfTable(table.id).length) table.status = 'available';
+        if (table && table.status === 'occupied') S.freeTable(table);
         UI.closeModal('paymentModal');
         UI.toast(`Thanh toán thành công ${U.code('HD', inv.id)} qua ${d.method} · Mã GD: ${inv.txId}`, 'success');
-        QN.app.rerender();
+        UI.keepFocus(() => QN.app.rerender());
     };
 
     /* Đồng bộ giỏ hàng khi món bị sửa / xóa ở trang Món ăn */
@@ -328,6 +441,9 @@
         },
         clearCart() {
             cart = [];
+        },
+        preselectTable(tableId) {
+            pendingTableId = tableId;
         }
     };
 
@@ -335,6 +451,14 @@
         render: renderOrders,
         init() {
             U.byId('orderVoucherSelect').addEventListener('change', renderCart);
+            U.byId('orderTableSelect').addEventListener('change', syncOrderContext);
+            // Ẩn thanh giỏ hàng khi chính giỏ hàng đang hiện trên màn hình
+            if ('IntersectionObserver' in window) {
+                const bar = U.byId('cartBar');
+                new IntersectionObserver(entries => {
+                    entries.forEach(e => bar.classList.toggle('is-cart-visible', e.isIntersecting));
+                }, { threshold: 0.15 }).observe(document.querySelector('#page-orders .cart'));
+            }
         }
     };
     QN.pages.invoices = { render: renderInvoices };

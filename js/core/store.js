@@ -1,11 +1,19 @@
 /* =========================================================
    KHO DỮ LIỆU & QUY TẮC NGHIỆP VỤ DÙNG CHUNG
+   Dữ liệu được lưu vào trình duyệt (localStorage) để F5 không mất;
+   nút "Khôi phục dữ liệu mẫu" ở trang Tổng quan đưa về dữ liệu ban đầu.
    ========================================================= */
 (function (QN) {
     'use strict';
     const U = QN.utils;
 
     const db = {};
+    const STORAGE_KEY = 'qntd.data';
+    const STORAGE_VERSION = 2;
+    const COLLECTIONS = [
+        'customers', 'employees', 'foods', 'suppliers', 'vouchers', 'ingredients', 'vehicles', 'tables',
+        'invoices', 'kitchenOrders', 'reservations', 'deliveryReqs', 'trips', 'receipts'
+    ];
 
     /** Nhãn + tông màu cho từng trạng thái (một nơi duy nhất) */
     const STATUS = {
@@ -21,6 +29,7 @@
         reservation: {
             pending: { label: 'Chờ xác nhận', tone: 'warning' },
             confirmed: { label: 'Đã xác nhận', tone: 'success' },
+            checked_in: { label: 'Đã đến', tone: 'info' },
             cancelled: { label: 'Đã hủy', tone: 'danger' }
         },
         food: {
@@ -34,11 +43,12 @@
         },
         delivery: {
             pending: { label: 'Chờ giao xe', tone: 'warning' },
-            assigned: { label: 'Đã giao xe', tone: 'success' },
-            completed: { label: 'Hoàn tất', tone: 'neutral' }
+            assigned: { label: 'Đã giao xe', tone: 'info' },
+            completed: { label: 'Hoàn tất', tone: 'success' }
         },
         trip: {
-            'Đang đón': { label: 'Đang đón', tone: 'info' }
+            'Đang đón': { label: 'Đang đón', tone: 'info' },
+            'Hoàn tất': { label: 'Hoàn tất', tone: 'success' }
         },
         receipt: {
             import: { label: 'Nhập', tone: 'success' },
@@ -51,9 +61,8 @@
         }
     };
 
-    /** Ngưỡng tồn kho (trước đây lặp lại ở 4 chỗ) */
-    const STOCK_LOW = 5;
-    const STOCK_MEDIUM = 15;
+    /** Định mức tồn mặc định khi nguyên liệu chưa khai báo */
+    const DEFAULT_MIN_STOCK = 5;
 
     const PAY_METHODS = [
         { id: 'Tiền mặt', icon: 'fa-money-bill-wave' },
@@ -62,16 +71,72 @@
         { id: 'MoMo', icon: 'fa-wallet' }
     ];
 
+    /* ---------- Lưu / đọc trình duyệt (có thể bị chặn ở chế độ ẩn danh) ---------- */
+    function readSaved() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return null;
+            const saved = JSON.parse(raw);
+            if (!saved || saved.version !== STORAGE_VERSION || !saved.db) return null;
+            if (!COLLECTIONS.every(key => Array.isArray(saved.db[key]))) return null;
+            return saved.db;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    let saveTimer = null;
+
+    function writeNow() {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: STORAGE_VERSION, savedAt: new Date().toISOString(), db }));
+        } catch (e) { /* hết dung lượng hoặc bị chặn: vẫn chạy bình thường trong phiên */ }
+    }
+
+    function replaceAll(data) {
+        Object.keys(db).forEach(key => { delete db[key]; });
+        COLLECTIONS.forEach(key => { db[key] = data[key]; });
+    }
+
     const store = {
         db,
         STATUS,
-        STOCK_LOW,
-        STOCK_MEDIUM,
+        DEFAULT_MIN_STOCK,
         PAY_METHODS,
+        restoredFromStorage: false,
 
+        /** Nạp dữ liệu đã lưu; nếu chưa có (hoặc hỏng) thì tạo dữ liệu mẫu */
         init() {
-            const seed = QN.createSeedData();
-            Object.keys(seed).forEach(key => { db[key] = seed[key]; });
+            const saved = readSaved();
+            store.restoredFromStorage = !!saved;
+            replaceAll(saved || QN.createSeedData());
+            if (saved) store.releaseExpiredHolds();
+        },
+
+        /** Mở lại dữ liệu cũ sau vài ngày: bàn "Đã đặt" mà lịch đặt đã qua (không còn ai giữ chỗ) → "Trống" */
+        releaseExpiredHolds() {
+            db.tables.forEach(t => { if (t.status === 'reserved') store.freeTable(t); });
+        },
+
+        /** Ghi lại sau mỗi thay đổi (gộp các thay đổi liên tiếp) */
+        save() {
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(writeNow, 150);
+        },
+
+        /** Ghi ngay (khi đóng / ẩn trang) */
+        flush() {
+            if (saveTimer) writeNow();
+        },
+
+        /** Xóa dữ liệu đã lưu, quay về dữ liệu mẫu mới */
+        reset() {
+            try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* bỏ qua */ }
+            replaceAll(QN.createSeedData());
+            store.restoredFromStorage = false;
+            writeNow();
         },
 
         /** Tìm theo id (chấp nhận cả số lẫn chuỗi, vì data-id luôn là chuỗi) */
@@ -117,31 +182,84 @@
             return v ? v.plate : '—';
         },
 
+        /** Định mức tồn tối thiểu của nguyên liệu */
+        minStock(ingredient) {
+            const m = Number(ingredient.minStock);
+            return ingredient.minStock !== '' && ingredient.minStock != null && Number.isFinite(m) ? m : DEFAULT_MIN_STOCK;
+        },
+
+        /** Sắp hết: ≤ định mức · Trung bình: ≤ 2 lần định mức · Đủ dùng: còn lại */
         stockLevel(ingredient) {
-            const s = Number(ingredient.stock) || 0;
-            if (s <= STOCK_LOW) return 'low';
-            if (s <= STOCK_MEDIUM) return 'medium';
+            const stock = Number(ingredient.stock) || 0;
+            const min = store.minStock(ingredient);
+            if (stock <= min) return 'low';
+            if (stock <= min * 2) return 'medium';
             return 'ok';
+        },
+
+        /** Ngày thanh toán (với hóa đơn đã thanh toán) */
+        paidDate(invoice) {
+            return String(invoice.paidAt || invoice.date || '').slice(0, 10);
         },
 
         pendingInvoicesOfTable(tableId) {
             return db.invoices.filter(i => i.status === 'pending' && Number(i.tableId) === Number(tableId));
         },
 
-        confirmedReservationsOfTable(tableId, exceptId) {
-            return db.reservations.filter(r => r.status === 'confirmed' && Number(r.tableId) === Number(tableId) && r.id !== exceptId);
+        /** Hóa đơn đang mở (chưa thanh toán) mới nhất của bàn */
+        openInvoiceOfTable(tableId) {
+            return store.pendingInvoicesOfTable(tableId).sort(store.byNewest)[0] || null;
+        },
+
+        /** Đặt bàn đã xác nhận, chưa đến, từ hôm nay trở đi đang giữ bàn này */
+        holdsOfTable(tableId, exceptId) {
+            const today = U.todayLocal();
+            return db.reservations.filter(r => r.status === 'confirmed' && Number(r.tableId) === Number(tableId) && r.date >= today && r.id !== exceptId)
+                .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+        },
+
+        /** Trạng thái bàn khi không còn khách ngồi: còn đặt bàn giữ chỗ thì "Đã đặt", không thì "Trống" */
+        freeTable(table) {
+            if (!table || store.pendingInvoicesOfTable(table.id).length) return;
+            table.status = store.holdsOfTable(table.id).length ? 'reserved' : 'available';
         },
 
         activeTrips() {
             return db.trips.filter(t => t.status === 'Đang đón');
         },
 
-        /** Những việc cần xử lý — hiển thị ở chuông thông báo */
+        activeTripOfVehicle(vehicleId) {
+            return store.activeTrips().find(t => Number(t.vehicleId) === Number(vehicleId)) || null;
+        },
+
+        /** Số việc cần xử lý ngay — hiển thị trên chuông */
         attention() {
             const kitchenNew = db.kitchenOrders.filter(k => k.status === 'new').length;
             const reservationsPending = db.reservations.filter(r => r.status === 'pending').length;
             const lowStock = db.ingredients.filter(g => store.stockLevel(g) === 'low').length;
             return { kitchenNew, reservationsPending, lowStock, total: kitchenNew + reservationsPending + lowStock };
+        },
+
+        /** Danh sách việc cần xử lý (trang Tổng quan và bảng của chuông) */
+        attentionItems() {
+            const today = U.todayLocal();
+            const now = U.nowTime();
+            const items = [];
+            const kitchenNew = db.kitchenOrders.filter(k => k.status === 'new');
+            if (kitchenNew.length) items.push({ urgent: true, icon: 'fa-fire', tone: 'danger', page: 'kitchen', text: `${kitchenNew.length} đơn bếp mới chờ chế biến` });
+            const pendingRes = db.reservations.filter(r => r.status === 'pending');
+            if (pendingRes.length) items.push({ urgent: true, icon: 'fa-calendar-check', tone: 'warning', page: 'reservations', text: `${pendingRes.length} đặt bàn chờ xác nhận` });
+            const low = db.ingredients.filter(g => store.stockLevel(g) === 'low');
+            if (low.length) items.push({ urgent: true, icon: 'fa-triangle-exclamation', tone: 'danger', page: 'ingredients', text: `${low.length} nguyên liệu sắp hết: ${low.map(g => g.name).join(', ')}` });
+            const late = db.reservations.filter(r => r.status === 'confirmed' && r.date === today && r.time <= now);
+            if (late.length) items.push({ urgent: false, icon: 'fa-user-clock', tone: 'warning', page: 'reservations', text: `${late.length} khách đặt bàn đã đến giờ nhưng chưa check-in` });
+            const arriving = db.reservations.filter(r => r.status === 'confirmed' && r.date === today && r.time > now);
+            if (arriving.length) items.push({ urgent: false, icon: 'fa-clock', tone: 'info', page: 'reservations', text: `${arriving.length} lượt đặt bàn sắp đến hôm nay (${arriving.map(r => r.time).sort().join(', ')})` });
+            const pendingInv = db.invoices.filter(i => i.status === 'pending');
+            if (pendingInv.length) items.push({ urgent: false, icon: 'fa-hourglass-half', tone: 'info', page: 'invoices', text: `${pendingInv.length} hóa đơn chờ thanh toán` });
+            const trips = store.activeTrips();
+            if (trips.length) items.push({ urgent: false, icon: 'fa-van-shuttle', tone: 'info', page: 'delivery', text: `${trips.length} chuyến xe đang đón khách` });
+            return items;
         },
 
         /** Sắp xếp mới nhất trước theo ngày, giờ, id */
@@ -152,6 +270,11 @@
             return b.id - a.id;
         }
     };
+
+    window.addEventListener('pagehide', store.flush);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') store.flush();
+    });
 
     QN.store = store;
 })(window.QN);

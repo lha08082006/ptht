@@ -121,9 +121,9 @@
             UI.toast(`Đã thêm ${c.label} “${c.display(record)}”`, 'success');
         }
         if (c.afterSave) c.afterSave(record, !existing);
-        UI.closeModal(c.modal);
-        render(key);
-        QN.app.refreshBell();
+        UI.closeModal(c.modal);           // focus quay về nút đã mở hộp thoại…
+        UI.keepFocus(() => render(key));  // …và vẫn giữ đúng nút đó sau khi bảng vẽ lại
+        QN.app.changed();
     }
 
     async function remove(key, id) {
@@ -145,8 +145,8 @@
         S.remove(c.key, record);
         if (c.afterDelete) c.afterDelete(record);
         UI.toast(`Đã xóa ${c.label} “${c.display(record)}”`, 'success');
-        render(key);
-        QN.app.refreshBell();
+        UI.keepFocus(() => render(key));
+        QN.app.changed();
     }
 
     QN.actions['crud-add'] = d => openForm(d.entity);

@@ -9,7 +9,9 @@
     const C = QN.charts;
     const { html } = U;
 
-    /* ---------------- BÁO CÁO TÀI CHÍNH ---------------- */
+    /* ---------------- BÁO CÁO TÀI CHÍNH ----------------
+       Doanh thu tính theo NGÀY THANH TOÁN (tiền thực thu);
+       hóa đơn chờ thanh toán tính theo ngày lập. */
     function setDefaultRange() {
         const to = U.todayLocal();
         U.byId('revDateFrom').value = U.addDays(to, -6);
@@ -30,9 +32,11 @@
             return;
         }
 
-        const list = S.db.invoices.filter(i => i.date >= from && i.date <= to).sort(S.byNewest);
-        const paid = list.filter(i => i.status === 'paid');
-        const pending = list.filter(i => i.status === 'pending');
+        const inRange = d => d >= from && d <= to;
+        const paid = S.db.invoices.filter(i => i.status === 'paid' && inRange(S.paidDate(i)));
+        const pending = S.db.invoices.filter(i => i.status === 'pending' && inRange(i.date));
+        const sortKey = i => (i.status === 'paid' ? String(i.paidAt || i.date) : i.date + 'T' + i.time);
+        const list = paid.concat(pending).sort((a, b) => sortKey(b).localeCompare(sortKey(a)) || b.id - a.id);
         const revenue = U.sum(paid, i => i.finalTotal);
         const pendingTotal = U.sum(pending, i => i.finalTotal);
         const discount = U.sum(paid, i => i.discount);
@@ -49,17 +53,17 @@
 
         // Doanh thu theo ngày: khoảng ≤ 31 ngày thì hiện đủ từng ngày (kể cả ngày bằng 0)
         const byDay = {};
-        paid.forEach(i => { byDay[i.date] = (byDay[i.date] || 0) + i.finalTotal; });
+        paid.forEach(i => { const d = S.paidDate(i); byDay[d] = (byDay[d] || 0) + i.finalTotal; });
         let days = Object.keys(byDay).sort();
         if (span <= 31) {
             days = [];
             for (let k = 0; k < span; k++) days.push(U.addDays(from, k));
         }
         C.columns(U.byId('revenueBarChart'), {
-            title: 'Doanh thu theo ngày',
+            title: 'Doanh thu theo ngày thanh toán',
             data: days.map(d => ({
                 label: U.fmtDateShort(d), tip: U.fmtDate(d),
-                value: byDay[d] || 0, valueText: U.fmtMoney(byDay[d] || 0), short: U.fmtMillions(byDay[d] || 0)
+                value: byDay[d] || 0, valueText: U.fmtMoney(byDay[d] || 0), short: U.fmtShortMoney(byDay[d] || 0)
             })),
             emptyText: 'Chưa có doanh thu trong khoảng ngày này'
         });
@@ -88,7 +92,7 @@
 
         // Nguyên liệu tiêu thụ = phiếu xuất kho trong khoảng ngày (đúng với tên biểu đồ)
         const used = {};
-        S.db.receipts.filter(r => r.type === 'export' && r.date >= from && r.date <= to).forEach(r => {
+        S.db.receipts.filter(r => r.type === 'export' && inRange(r.date)).forEach(r => {
             const x = used[r.ingredientId] || (used[r.ingredientId] = { name: r.ingredientName, qty: 0, cost: 0, id: r.ingredientId });
             x.qty += r.qty;
             x.cost += r.total;
@@ -107,6 +111,7 @@
             <tr>
                 <td class="t-code">${U.code('HD', inv.id)}</td>
                 <td class="nowrap">${U.fmtDate(inv.date)}</td>
+                <td class="nowrap">${inv.status === 'paid' ? U.fmtDate(S.paidDate(inv)) : html`<span class="text-muted">—</span>`}</td>
                 <td class="nowrap">${S.tableName(inv.tableId)}</td>
                 <td>${S.customerName(inv.custId)}</td>
                 <td class="num">${inv.items.length}</td>
@@ -199,25 +204,33 @@
         UI.setText('stExport', U.fmtMoney(U.sum(exports, r => r.total)));
         UI.setText('stExportSub', `${exports.length} phiếu xuất`);
         UI.setText('stLow', U.fmtNumber(low.length));
-        UI.setText('stLowSub', low.length ? low.map(g => g.name).join(', ') : `Không có nguyên liệu nào ≤ ${S.STOCK_LOW}`);
+        UI.setText('stLowSub', low.length ? low.map(g => g.name).join(', ') : 'Không có nguyên liệu nào chạm định mức');
 
-        // Màu thể hiện trạng thái tồn kho (kèm chú thích và nhãn chữ, không chỉ dựa vào màu)
+        // Mỗi thanh so với định mức của chính nguyên liệu đó (đầy = gấp đôi định mức = "Đủ dùng"),
+        // nên không so kg với thùng. Vạch mờ ở giữa = định mức tối thiểu.
         const levelColor = { low: C.COLORS.critical, medium: C.COLORS.warning, ok: C.COLORS.good };
-        C.bars(U.byId('stockBarChart'), {
-            title: 'Tồn kho theo nguyên liệu',
+        const rows = ingredients.map(g => {
+            const min = S.minStock(g);
+            const level = S.stockLevel(g);
+            const target = Math.max(min * 2, 1);
+            return { g, min, level, ratio: g.stock / target };
+        }).sort((a, b) => a.ratio - b.ratio);
+        C.meters(U.byId('stockBarChart'), {
+            title: 'Tồn kho so với định mức',
             legend: [
-                { label: S.STATUS.stock.ok.label, color: levelColor.ok },
+                { label: `${S.STATUS.stock.ok.label} (trên 2× định mức)`, color: levelColor.ok },
                 { label: S.STATUS.stock.medium.label, color: levelColor.medium },
-                { label: S.STATUS.stock.low.label, color: levelColor.low }
+                { label: `${S.STATUS.stock.low.label} (≤ định mức)`, color: levelColor.low }
             ],
-            data: ingredients.slice().sort((a, b) => a.stock - b.stock).map(g => {
-                const level = S.stockLevel(g);
-                return {
-                    label: g.name, value: g.stock, valueText: `${U.fmtNumber(g.stock)} ${g.unit}`,
-                    note: level === 'low' ? '· Sắp hết' : '', color: levelColor[level],
-                    tip: `${g.name} — ${S.STATUS.stock[level].label}`
-                };
-            }),
+            data: rows.map(x => ({
+                label: x.g.name,
+                ratio: x.ratio,
+                markAt: 0.5,
+                valueText: `${U.fmtNumber(x.g.stock)} ${x.g.unit}`,
+                note: `tối thiểu ${U.fmtNumber(x.min)}`,
+                color: levelColor[x.level],
+                tip: `${x.g.name} — ${S.STATUS.stock[x.level].label}`
+            })),
             emptyText: 'Chưa có nguyên liệu'
         });
 
@@ -253,6 +266,7 @@
                     <td class="num text-success">${U.fmtNumber(inQty)}</td>
                     <td class="num text-danger">${U.fmtNumber(outQty)}</td>
                     <td class="num t-strong">${U.fmtNumber(g.stock)}</td>
+                    <td class="num">${U.fmtNumber(S.minStock(g))}</td>
                     <td class="num">${U.fmtMoney(g.price)}</td>
                     <td class="num">${U.fmtMoney(g.stock * g.price)}</td>
                     <td>${UI.statusBadge('stock', S.stockLevel(g))}</td>

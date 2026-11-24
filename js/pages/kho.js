@@ -20,10 +20,13 @@
         label: 'nguyên liệu',
         modal: 'ingredientModal',
         tbody: 'ingredientTableBody',
+        meta: 'ingredientsMeta',
+        search: { input: 'searchIngredient', fields: r => [r.name, r.unit, S.supplierName(r.supplierId)] },
         fields: [
             { id: 'ingName', key: 'name' },
             { id: 'ingPrice', key: 'price', type: 'int' },
             { id: 'ingUnit', key: 'unit', type: 'raw' },
+            { id: 'ingMinStock', key: 'minStock', type: 'int' },
             { id: 'ingSupplier', key: 'supplierId', type: 'select-int' }
         ],
         defaults: () => ({ stock: 0 }),
@@ -37,6 +40,7 @@
             { className: 'num', render: r => U.fmtMoney(r.price) },
             { render: r => S.supplierName(r.supplierId) },
             { className: 'num t-strong', render: r => `${U.fmtNumber(r.stock)} ${r.unit}` },
+            { className: 'num', render: r => `${U.fmtNumber(S.minStock(r))} ${r.unit}` },
             { render: r => UI.statusBadge('stock', S.stockLevel(r)) }
         ],
         display: r => r.name,
@@ -46,7 +50,8 @@
                 ['ingName', v.name, R.required('Vui lòng nhập tên nguyên liệu'), R.maxLength(80),
                     R.unique(S.db.ingredients, x => x.name, existing, 'Nguyên liệu này đã có')],
                 ['ingPrice', v.price, R.required('Vui lòng nhập đơn giá'), R.integer({ min: 1, max: 100000000 })],
-                ['ingUnit', v.unit, u => (hasReceipts && u !== existing.unit ? `Không đổi được đơn vị vì đã có phiếu kho tính theo “${existing.unit}”` : null)]
+                ['ingUnit', v.unit, u => (hasReceipts && u !== existing.unit ? `Không đổi được đơn vị vì đã có phiếu kho tính theo “${existing.unit}”` : null)],
+                ['ingMinStock', v.minStock, R.required('Vui lòng nhập định mức tồn tối thiểu'), R.integer({ min: 0, max: 100000 })]
             ]);
         },
         canDelete: r => {
@@ -61,6 +66,8 @@
         label: 'nhà cung cấp',
         modal: 'supplierModal',
         tbody: 'supplierTableBody',
+        meta: 'suppliersMeta',
+        search: { input: 'searchSupplier', fields: r => [r.name, r.address, r.phone] },
         fields: [
             { id: 'supName', key: 'name' },
             { id: 'supAddress', key: 'address' },
@@ -99,7 +106,9 @@
             import: all.filter(r => r.type === 'import').length,
             export: all.filter(r => r.type === 'export').length
         });
-        const list = inventoryFilter === 'all' ? all : all.filter(r => r.type === inventoryFilter);
+        const query = val('searchReceipt').trim();
+        const list = (inventoryFilter === 'all' ? all : all.filter(r => r.type === inventoryFilter))
+            .filter(r => U.matches(query, U.code('PK', r.id), r.ingredientName, S.supplierName(r.supplierId), S.employeeName(r.empId)));
         UI.renderRows('inventoryTableBody', list.map(r => html`
             <tr>
                 <td class="t-code">${U.code('PK', r.id)}</td>
@@ -111,7 +120,9 @@
                 <td class="num">${U.fmtNumber(r.qty)} ${unitOf(r.ingredientId)}</td>
                 <td class="num t-strong">${U.fmtMoney(r.total)}</td>
                 <td class="num"><div class="cell-actions">${UI.iconButton({ action: 'receipt-view', icon: 'fa-eye', label: 'Xem phiếu ' + U.code('PK', r.id), tone: 'info', data: { id: r.id } })}</div></td>
-            </tr>`), { empty: inventoryFilter === 'all' ? 'Chưa có phiếu kho nào' : 'Không có phiếu ở loại này' });
+            </tr>`), query
+            ? { empty: `Không tìm thấy phiếu kho cho “${query}”`, icon: 'fa-magnifying-glass' }
+            : { empty: inventoryFilter === 'all' ? 'Chưa có phiếu kho nào' : 'Không có phiếu ở loại này' });
     }
 
     /** Ẩn/hiện ô NCC theo loại phiếu, tự chọn NCC của nguyên liệu, xem trước tồn kho */
@@ -189,7 +200,7 @@
         UI.closeModal('receiptModal');
         UI.toast(`Đã lưu phiếu ${type === 'import' ? 'nhập' : 'xuất'} ${U.code('PK', id)}: ${ingredient.name} ${type === 'import' ? '+' : '−'}${qty} ${ingredient.unit}`, 'success');
         renderInventory();
-        QN.app.refreshBell();
+        QN.app.changed();
     };
 
     QN.actions['receipt-view'] = d => {

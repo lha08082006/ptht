@@ -2,6 +2,91 @@
    PAGES — phần riêng của từng màn hình
    ========================================================= */
 
+/* ---------- TỔNG QUAN: HÔM NAY & VIỆC CẦN XỬ LÝ ---------- */
+.today__body {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+    align-items: center;
+    gap: var(--sp-5);
+}
+
+.today__label {
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    color: var(--text-3);
+}
+
+.today__value {
+    margin: 2px 0 6px;
+    font-size: 2.75rem;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    overflow-wrap: anywhere;
+}
+
+.today__sub {
+    margin-bottom: var(--sp-3);
+    font-size: var(--fs-sm);
+    color: var(--text-2);
+}
+
+.attention {
+    display: grid;
+}
+
+.attention__item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    width: 100%;
+    padding: 10px var(--sp-5);
+    text-align: left;
+    color: var(--text);
+    transition: background-color var(--dur);
+}
+
+.attention__item:hover {
+    background: var(--surface-2);
+}
+
+.popover .attention__item {
+    padding: 10px var(--sp-4);
+}
+
+.attention__icon {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--r-sm);
+    font-size: 14px;
+}
+
+.attention__icon--danger { color: var(--danger); background: var(--danger-bg); }
+.attention__icon--warning { color: var(--warning); background: var(--warning-bg); }
+.attention__icon--info { color: var(--info); background: var(--info-bg); }
+
+.attention__text {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--fs-sm);
+    line-height: 1.4;
+}
+
+.attention__go {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--text-3);
+}
+
+.popover .empty,
+#attentionList .empty {
+    padding: var(--sp-6) var(--sp-4);
+}
+
 /* ---------- QUẢN LÝ BÀN ---------- */
 .tables-hint {
     margin-bottom: var(--sp-4);
@@ -87,6 +172,12 @@
 .table-card__meta {
     font-size: var(--fs-xs);
     color: var(--text-3);
+}
+
+.table-card__hold {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--warning);
 }
 
 /* ---------- GỌI MÓN ---------- */
@@ -323,6 +414,57 @@
     font-size: var(--fs-2xl);
     font-variant-numeric: tabular-nums;
     color: var(--brand-700);
+}
+
+/* Thanh giỏ hàng nổi: chỉ hiện ở màn hình hẹp khi giỏ hàng nằm dưới thực đơn */
+.cart-bar {
+    display: none;
+}
+
+@media (max-width: 1099.98px) {
+    .cart-bar {
+        position: fixed;
+        right: var(--sp-3);
+        bottom: var(--sp-3);
+        left: var(--sp-3);
+        z-index: 25;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--sp-3);
+        padding: 10px 10px 10px var(--sp-4);
+        border-radius: var(--r-lg);
+        color: var(--text-inverse);
+        background: var(--brand-900);
+        box-shadow: var(--shadow-3);
+        transition: transform var(--dur) var(--ease), opacity var(--dur), visibility var(--dur);
+    }
+
+    /* visibility: hidden để nút "Xem đơn" đang ẩn không nhận được Tab */
+    .cart-bar.is-empty,
+    .cart-bar.is-cart-visible {
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(16px);
+    }
+
+    #page-orders.is-active {
+        padding-bottom: 72px;
+    }
+}
+
+.cart-bar__info {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    font-size: var(--fs-md);
+    font-variant-numeric: tabular-nums;
+}
+
+.cart-bar__info i {
+    color: var(--gold-500);
 }
 
 /* ---------- BẾP (KANBAN) ---------- */
@@ -626,13 +768,33 @@
 .qr-ticket__box {
     display: grid;
     place-items: center;
-    width: 148px;
-    height: 148px;
+    width: 172px;
+    height: 172px;
     margin: 0 auto 14px;
+    padding: 6px;
     border-radius: var(--r-md);
     font-size: 76px;
-    color: var(--gold-500);
-    background: linear-gradient(135deg, var(--brand-900), var(--brand-700));
+    color: var(--brand-900);
+    background: #fff;
+    box-shadow: 0 0 0 4px var(--brand-900);
+}
+
+/* Mã QR luôn tối trên nền sáng để máy quét đọc được */
+.qr-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.qr-svg__bg {
+    fill: #fff;
+}
+
+.qr-svg__dots {
+    fill: #111;
+}
+
+.qr-checkin {
+    margin-top: var(--sp-4);
 }
 
 .qr-ticket__code {
@@ -793,6 +955,64 @@
 
     .pay-summary__amount {
         font-size: 1.875rem;
+    }
+}
+
+@media (max-width: 899.98px) {
+    .today__body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .today__value {
+        font-size: 2.25rem;
+    }
+}
+
+/* ---------- IN HÓA ĐƠN: chỉ in tờ hóa đơn trong hộp thoại ---------- */
+@media print {
+    body.print-invoice {
+        background: #fff;
+    }
+
+    body.print-invoice > *:not(#invoiceDetailModal) {
+        display: none !important;
+    }
+
+    body.print-invoice #invoiceDetailModal {
+        position: static;
+        display: block !important;
+        padding: 0;
+        overflow: visible;
+        background: none;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        animation: none;
+    }
+
+    body.print-invoice #invoiceDetailModal .modal__dialog {
+        max-width: none;
+        max-height: none;
+        border-radius: 0;
+        box-shadow: none;
+        animation: none;
+    }
+
+    body.print-invoice #invoiceDetailModal .modal__header,
+    body.print-invoice #invoiceDetailModal .modal__footer {
+        display: none;
+    }
+
+    body.print-invoice #invoiceDetailModal .modal__body {
+        overflow: visible;
+        padding: 0;
+    }
+
+    body.print-invoice .table th {
+        background: none;
+    }
+
+    body.print-invoice .badge {
+        border: 1px solid currentColor;
     }
 }
 

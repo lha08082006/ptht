@@ -55,10 +55,16 @@ window.QN = window.QN || {};
         return fmtNumber(Math.round(Number(n) || 0)) + 'đ';
     }
 
-    /** 1.250.000 → "1,3tr" (dùng dấu phẩy thập phân kiểu Việt Nam) */
-    function fmtMillions(n) {
-        const x = (Number(n) || 0) / 1e6;
-        return x.toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + 'tr';
+    /**
+     * Tiền dạng ngắn cho nhãn biểu đồ (dấu phẩy thập phân kiểu Việt Nam):
+     * 1.250.000 → "1,3tr" · 328.000 → "328k" · 25.000 → "25k" · 800 → "800đ"
+     */
+    function fmtShortMoney(n) {
+        const x = Number(n) || 0;
+        const abs = Math.abs(x);
+        if (abs >= 1e6) return (x / 1e6).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + 'tr';
+        if (abs >= 1e3) return Math.round(x / 1e3).toLocaleString('vi-VN') + 'k';
+        return fmtNumber(x) + 'đ';
     }
 
     function fmtPercent(ratio, digits = 0) {
@@ -179,7 +185,7 @@ window.QN = window.QN || {};
 
     QN.utils = {
         SafeHtml, escapeHtml, html, raw,
-        fmtNumber, fmtMoney, fmtMillions, fmtPercent,
+        fmtNumber, fmtMoney, fmtShortMoney, fmtPercent,
         pad2, toISODate, todayLocal, nowTime, nowDateTime, parseISODate, addDays, daysBetween,
         fmtDate, fmtDateShort, fmtDateTime, fmtRelativeDate,
         code, nextId, normalizeText, matches, digitsOnly, byId, sum

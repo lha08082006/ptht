@@ -15,14 +15,19 @@
     ];
     const NEXT = { new: 'cooking', cooking: 'done' };
 
+    /** Khóa sắp xếp theo ngày + giờ (phiếu cũ có thể từ hôm trước) */
+    const sortKey = k => (k.date || '') + ' ' + (k.time || '');
+
     function ticket(k) {
+        const today = U.todayLocal();
+        const when = k.date && k.date !== today ? U.fmtRelativeDate(k.date) + ' ' + k.time : k.time;
         return html`
             <article class="ticket">
                 <div class="ticket__head">
                     <span class="ticket__table">${S.tableName(k.tableId)}</span>
-                    <span class="ticket__time"><i class="fas fa-clock" aria-hidden="true"></i>${k.time}</span>
+                    <span class="ticket__time"><i class="fas fa-clock" aria-hidden="true"></i>${when}</span>
                 </div>
-                ${k.invoiceId ? html`<p class="ticket__sub">Hóa đơn ${U.code('HD', k.invoiceId)}</p>` : ''}
+                ${k.invoiceId ? html`<p class="ticket__sub">${k.extra ? html`<span class="badge badge--info">Gọi thêm</span> ` : ''}Hóa đơn ${U.code('HD', k.invoiceId)}</p>` : ''}
                 <ul class="ticket__items">
                     ${k.items.map(it => html`<li class="ticket__item"><span class="ticket__qty">×${it.qty}</span><span>${it.name}</span></li>`)}
                 </ul>
@@ -36,7 +41,7 @@
             const items = S.db.kitchenOrders
                 .filter(k => k.status === col.status)
                 // Đơn đang chờ: cũ nhất lên trước; đơn xong: mới nhất lên trước
-                .sort((a, b) => (col.status === 'done' ? -1 : 1) * ((a.time || '').localeCompare(b.time || '') || a.id - b.id));
+                .sort((a, b) => (col.status === 'done' ? -1 : 1) * (sortKey(a).localeCompare(sortKey(b)) || a.id - b.id));
             UI.setText(col.count, items.length);
             U.byId(col.list).innerHTML = items.length ? items.map(ticket).join('') : UI.emptyState(col.empty, 'fa-mug-hot');
         });
@@ -48,7 +53,8 @@
         k.status = d.to;
         UI.toast(`${S.tableName(k.tableId)}: ${d.to === 'cooking' ? 'bắt đầu chế biến' : 'đã hoàn thành'}`, 'success');
         render();
-        QN.app.refreshBell();
+        UI.focusFallback();
+        QN.app.changed();
     };
 
     QN.actions['kitchen-refresh'] = () => {

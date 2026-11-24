@@ -34,13 +34,19 @@
      * Cột dọc một chuỗi.
      * data: [{ label, value, valueText, short }]
      */
-    function columns(el, { data, title, color = COLORS.series[0], emptyText }) {
+    function columns(el, { data, title, color = COLORS.series[0], emptyText, compact = false }) {
         if (!el) return;
         if (!data.length || data.every(d => !d.value)) return empty(el, emptyText);
         const max = Math.max(...data.map(d => d.value), 1);
         const dense = data.length > 12;
+        const many = data.length > 7;
+        // Tối đa 8 nhãn, cách quãng đều và tính lùi từ cột cuối (ngày gần nhất luôn có nhãn);
+        // nhãn được tràn sang các cột không có nhãn bên cạnh nên không bị cắt chữ
+        const step = Math.ceil(data.length / 8);
+        const labelled = new Set();
+        for (let i = data.length - 1; i >= 0; i -= step) labelled.add(i);
         el.innerHTML = html`
-            <figure class="colchart${dense ? ' colchart--dense' : ''}" role="img" aria-label="${title}">
+            <figure class="colchart${dense ? ' colchart--dense' : ''}${many ? ' colchart--many' : ''}${compact ? ' colchart--compact' : ''}" role="img" aria-label="${title}">
                 <div class="colchart__plot">
                     ${data.map(d => html`
                         <div class="colchart__col" tabindex="0" data-tip="${d.tip || d.label}" data-tip-value="${d.valueText}">
@@ -49,10 +55,32 @@
                         </div>`)}
                 </div>
                 <div class="colchart__axis" aria-hidden="true">
-                    ${data.map(d => html`<span class="colchart__label">${d.label}</span>`)}
+                    ${data.map((d, i) => html`<span class="colchart__label">${labelled.has(i) ? d.label : ''}</span>`)}
                 </div>
             </figure>
-            ${srTable(title, ['Mục', 'Giá trị'], data.map(d => [d.label, d.valueText]))}`;
+            ${srTable(title, ['Mục', 'Giá trị'], data.map(d => [d.tip || d.label, d.valueText]))}`;
+    }
+
+    /**
+     * Danh sách thanh đo (meter): mỗi dòng so với mốc của riêng nó, nên không trộn đơn vị.
+     * data: [{ label, ratio (0..1, đã chặn), markAt (0..1, vạch mốc), valueText, note, color, tip }]
+     */
+    function meters(el, { data, title, legend, emptyText }) {
+        if (!el) return;
+        if (!data.length) return empty(el, emptyText);
+        el.innerHTML = html`
+            ${legend ? html`<div class="chart-legend-inline" aria-hidden="true">${legend.map(l => html`<span style="--c:${l.color}">${l.label}</span>`)}</div>` : ''}
+            <div class="meter" role="list" aria-label="${title}">
+                ${data.map(d => html`
+                    <div class="meter__row" role="listitem" tabindex="0" data-tip="${d.tip || d.label}" data-tip-value="${d.valueText}${d.note ? ' · ' + d.note : ''}">
+                        <span class="meter__label" title="${d.label}">${d.label}</span>
+                        <span class="meter__track" style="--c:${d.color}">
+                            <span class="meter__fill" style="--p:${Math.max(0, Math.min(1, d.ratio)).toFixed(4)}"></span>
+                            ${d.markAt != null ? html`<span class="meter__mark" style="--m:${d.markAt.toFixed(4)}" aria-hidden="true"></span>` : ''}
+                        </span>
+                        <span class="meter__value">${d.valueText}${d.note ? html` <span class="meter__note">${d.note}</span>` : ''}</span>
+                    </div>`)}
+            </div>`;
     }
 
     /**
@@ -157,5 +185,23 @@
     document.addEventListener('focusout', hideTip);
     window.addEventListener('scroll', hideTip, true);
 
-    QN.charts = { COLORS, columns, bars, segments };
+    /** Mã QR thật (SVG) từ chuỗi; trả về null nếu thiếu thư viện */
+    function qrSvg(text) {
+        if (typeof window.qrcode !== 'function') return null;
+        const qr = window.qrcode(0, 'M');
+        qr.addData(String(text));
+        qr.make();
+        const n = qr.getModuleCount();
+        const quiet = 4;
+        const size = n + quiet * 2;
+        let path = '';
+        for (let r = 0; r < n; r++) {
+            for (let c = 0; c < n; c++) {
+                if (qr.isDark(r, c)) path += 'M' + (c + quiet) + ' ' + (r + quiet) + 'h1v1h-1z';
+            }
+        }
+        return html`<svg class="qr-svg" viewBox="0 0 ${size} ${size}" role="img" aria-label="Mã QR ${text}" shape-rendering="crispEdges"><rect class="qr-svg__bg" width="${size}" height="${size}"></rect><path class="qr-svg__dots" d="${path}"></path></svg>`;
+    }
+
+    QN.charts = { COLORS, columns, bars, segments, meters, qrSvg };
 })(window.QN);

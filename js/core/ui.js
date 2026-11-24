@@ -124,24 +124,28 @@
         }
     });
 
-    /* ---------- HỘP XÁC NHẬN (thay confirm()) ---------- */
-    function confirmDialog({ title = 'Xác nhận', message = '', confirmText = 'Đồng ý', cancelText = 'Hủy', tone = 'danger', icon } = {}) {
+    /* ---------- HỘP XÁC NHẬN (thay confirm()) ----------
+       Trả về true (bấm nút đồng ý), false (bấm nút hủy).
+       Đóng bằng Esc / bấm ra ngoài trả về `dismissValue` (mặc định false). */
+    function confirmDialog({ title = 'Xác nhận', message = '', confirmText = 'Đồng ý', cancelText = 'Hủy', tone = 'danger', icon, dismissValue = false } = {}) {
         return new Promise(resolve => {
             const ok = U.byId('confirmOk');
+            const cancel = U.byId('confirmCancel');
             const iconBox = U.byId('confirmIcon');
             U.byId('confirmTitle').textContent = title;
             U.byId('confirmMessage').textContent = message;
-            U.byId('confirmCancel').textContent = cancelText;
+            cancel.textContent = cancelText;
             ok.textContent = confirmText;
             ok.className = 'btn ' + (tone === 'danger' ? 'btn--danger' : 'btn--secondary');
             iconBox.className = 'confirm__icon' + (tone === 'danger' ? '' : ' confirm__icon--info');
             iconBox.innerHTML = html`<i class="fas ${icon || (tone === 'danger' ? 'fa-trash' : 'fa-circle-question')}"></i>`;
-            let confirmed = false;
+            let answer = dismissValue;
             ok.onclick = () => {
-                confirmed = true;
+                answer = true;
                 closeModal('confirmModal');
             };
-            openModal('confirmModal', { focus: '#confirmCancel', onClose: () => resolve(confirmed) });
+            cancel.onclick = () => { answer = false; }; // sau đó [data-close] tự đóng hộp
+            openModal('confirmModal', { focus: '#confirmCancel', onClose: () => resolve(answer) });
         });
     }
 
@@ -207,6 +211,15 @@
         const selector = '[data-action="' + action + '"]' + (id != null ? '[data-id="' + id + '"]' : '');
         const again = document.querySelector(selector);
         if (again && again !== active) again.focus();
+        else if (!again && !document.contains(active)) focusFallback();
+    }
+
+    /** Khi nút đang focus biến mất (dòng bị xóa / đổi trạng thái): đưa focus về nút chính của trang */
+    function focusFallback() {
+        const target = document.querySelector('.page.is-active .page-actions .btn, .page.is-active .page-title');
+        if (!target) return;
+        if (!target.matches('button, a, input, select, textarea')) target.setAttribute('tabindex', '-1');
+        target.focus();
     }
 
     /** Cập nhật nhóm tab lọc: trạng thái chọn + số đếm */
@@ -238,6 +251,7 @@
         fillSelect,
         setText,
         syncTabs,
-        keepFocus
+        keepFocus,
+        focusFallback
     };
 })(window.QN);

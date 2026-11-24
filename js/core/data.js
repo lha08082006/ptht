@@ -9,12 +9,18 @@
     'use strict';
     const U = QN.utils;
 
-    /** Giờ "HH:mm" lệch so với bây giờ, không vượt sang ngày khác */
+    /** Giờ "HH:mm" trong quá khứ của hôm nay (không lùi sang hôm qua) */
     function timeShift(minutes) {
         const now = new Date();
         const t = new Date(now.getTime() + minutes * 60000);
-        if (t.toDateString() !== now.toDateString()) return minutes < 0 ? '00:05' : '23:45';
+        if (t.toDateString() !== now.toDateString()) return '00:05';
         return U.pad2(t.getHours()) + ':' + U.pad2(t.getMinutes());
+    }
+
+    /** Mốc thời gian sắp tới: { date, time }. Qua nửa đêm thì sang ngày mai (không kẹp về giờ đã qua). */
+    function futureSlot(minutes) {
+        const t = new Date(Date.now() + minutes * 60000);
+        return { date: U.toISODate(t), time: U.pad2(t.getHours()) + ':' + U.pad2(t.getMinutes()) };
     }
 
     QN.createSeedData = function () {
@@ -71,17 +77,18 @@
             { id: 'VC004', desc: 'Giảm 5% tri ân khách hàng', percent: 5, qty: 100 }
         ];
 
+        // minStock: định mức tồn tối thiểu của từng nguyên liệu (theo đơn vị tính của nó)
         const ingredients = [
-            { id: 1, name: 'Nầm sữa bò', unit: 'kg', price: 180000, supplierId: 3, stock: 0 },
-            { id: 2, name: 'Ếch đồng', unit: 'kg', price: 120000, supplierId: 1, stock: 0 },
-            { id: 3, name: 'Thịt lợn mán', unit: 'kg', price: 250000, supplierId: 1, stock: 0 },
-            { id: 4, name: 'Chân gà rút xương', unit: 'kg', price: 85000, supplierId: 1, stock: 0 },
-            { id: 5, name: 'Cá diêu hồng', unit: 'kg', price: 95000, supplierId: 4, stock: 0 },
-            { id: 6, name: 'Tôm sú', unit: 'kg', price: 320000, supplierId: 4, stock: 0 },
-            { id: 7, name: 'Lạp xưởng', unit: 'kg', price: 160000, supplierId: 1, stock: 0 },
-            { id: 8, name: 'Rau xà lách', unit: 'kg', price: 35000, supplierId: 5, stock: 0 },
-            { id: 9, name: 'Bia Tự Do', unit: 'thùng', price: 280000, supplierId: 2, stock: 0 },
-            { id: 10, name: 'Nước ngọt', unit: 'thùng', price: 180000, supplierId: 2, stock: 0 }
+            { id: 1, name: 'Nầm sữa bò', unit: 'kg', price: 180000, supplierId: 3, minStock: 8, stock: 0 },
+            { id: 2, name: 'Ếch đồng', unit: 'kg', price: 120000, supplierId: 1, minStock: 5, stock: 0 },
+            { id: 3, name: 'Thịt lợn mán', unit: 'kg', price: 250000, supplierId: 1, minStock: 5, stock: 0 },
+            { id: 4, name: 'Chân gà rút xương', unit: 'kg', price: 85000, supplierId: 1, minStock: 5, stock: 0 },
+            { id: 5, name: 'Cá diêu hồng', unit: 'kg', price: 95000, supplierId: 4, minStock: 6, stock: 0 },
+            { id: 6, name: 'Tôm sú', unit: 'kg', price: 320000, supplierId: 4, minStock: 5, stock: 0 },
+            { id: 7, name: 'Lạp xưởng', unit: 'kg', price: 160000, supplierId: 1, minStock: 4, stock: 0 },
+            { id: 8, name: 'Rau xà lách', unit: 'kg', price: 35000, supplierId: 5, minStock: 8, stock: 0 },
+            { id: 9, name: 'Bia Tự Do', unit: 'thùng', price: 280000, supplierId: 2, minStock: 10, stock: 0 },
+            { id: 10, name: 'Nước ngọt', unit: 'thùng', price: 180000, supplierId: 2, minStock: 12, stock: 0 }
         ];
 
         const vehicles = [
@@ -133,7 +140,7 @@
             const paid = status === 'paid';
             return {
                 id, date, time, tableId, custId, empId, items, total,
-                voucher: voucherId, discount, finalTotal: total - discount,
+                voucher: voucherId, voucherPercent: voucher ? voucher.percent : 0, discount, finalTotal: total - discount,
                 status,
                 payMethod: paid ? payMethod : '',
                 txId: paid ? 'TXN' + date.replace(/-/g, '').slice(2) + U.pad2(id) : '',
@@ -149,25 +156,28 @@
         ].map(k => {
             const inv = invoices.find(i => i.id === k.invoiceId);
             return {
-                id: k.id, invoiceId: inv.id, tableId: inv.tableId, status: k.status, time: inv.time,
+                id: k.id, invoiceId: inv.id, tableId: inv.tableId, status: k.status, date: inv.date, time: inv.time,
                 items: inv.items.map(it => ({ foodId: it.foodId, name: it.name, qty: it.qty }))
             };
         });
 
+        const partySlot = futureSlot(120);
         const reservations = [
             { id: 1, name: 'Nguyễn Văn An', phone: '0901234567', date: day(1), time: '18:00', guests: 4, tableId: 11, status: 'confirmed', note: 'Sinh nhật', qr: 'RES-001-QNTD' },
             { id: 2, name: 'Trần Thị Bình', phone: '0912345678', date: day(2), time: '19:30', guests: 6, tableId: 0, status: 'pending', note: '', qr: 'RES-002-QNTD' },
             { id: 3, name: 'Phạm Minh Dũng', phone: '0934567890', date: day(1), time: '20:00', guests: 2, tableId: 5, status: 'cancelled', note: 'Hủy do thay đổi lịch', qr: 'RES-003-QNTD' },
-            { id: 4, name: 'Hoàng Thị Ánh', phone: '0945678901', date: day(0), time: timeShift(120), guests: 8, tableId: 4, status: 'confirmed', note: 'Liên hoan công ty', qr: 'RES-004-QNTD' }
+            { id: 4, name: 'Hoàng Thị Ánh', phone: '0945678901', date: partySlot.date, time: partySlot.time, guests: 8, tableId: 4, status: 'confirmed', note: 'Liên hoan công ty', qr: 'RES-004-QNTD' }
         ];
 
+        const pickup1 = futureSlot(90);
+        const pickup2 = futureSlot(45);
         const deliveryReqs = [
-            { id: 1, custId: 1, pickup: '123 Nguyễn Trãi, Thanh Xuân', dropoff: 'Quán Nhậu Tự Do', time: today + 'T' + timeShift(90), guests: 4, status: 'pending', note: '' },
-            { id: 2, custId: 3, pickup: '45 Lê Duẩn, Đống Đa', dropoff: 'Quán Nhậu Tự Do', time: today + 'T' + timeShift(45), guests: 6, status: 'assigned', note: 'Có trẻ em' }
+            { id: 1, custId: 1, pickup: '123 Nguyễn Trãi, Thanh Xuân', dropoff: 'Quán Nhậu Tự Do', time: pickup1.date + 'T' + pickup1.time, guests: 4, status: 'pending', note: '' },
+            { id: 2, custId: 3, pickup: '45 Lê Duẩn, Đống Đa', dropoff: 'Quán Nhậu Tự Do', time: pickup2.date + 'T' + pickup2.time, guests: 6, status: 'assigned', note: 'Có trẻ em' }
         ];
 
         const trips = [
-            { id: 1, reqId: 2, custId: 3, vehicleId: 2, driverId: 5, departure: timeShift(15), status: 'Đang đón' }
+            { id: 1, reqId: 2, custId: 3, vehicleId: 2, driverId: 5, departure: futureSlot(15).time, status: 'Đang đón' }
         ];
 
         // Phiếu kho: [ngày lệch, loại, nguyên liệu, SL, NV lập]. 10 phiếu đầu là nhập đầu kỳ.

@@ -8,6 +8,7 @@
     const S = QN.store;
     const UI = QN.ui;
     const V = QN.validate;
+    const C = QN.charts;
     const R = V.rules;
     const { html } = U;
 
@@ -52,6 +53,8 @@
         label: 'voucher',
         modal: 'voucherModal',
         tbody: 'voucherTableBody',
+        meta: 'vouchersMeta',
+        search: { input: 'searchVoucher', fields: r => [r.id, r.desc] },
         fields: [
             { id: 'vcId', key: 'id', type: 'upper' },
             { id: 'vcPercent', key: 'percent', type: 'int' },
@@ -85,13 +88,16 @@
 
     function tableCard(t) {
         const st = S.STATUS.table[t.status];
+        const hold = S.holdsOfTable(t.id)[0];
+        const holdText = hold ? `Giữ cho ${U.code('RES', hold.id)} · ${hold.date === U.todayLocal() ? hold.time : U.fmtDateShort(hold.date) + ' ' + hold.time}` : '';
         return html`
             <button type="button" class="table-card table-card--${t.status}" data-action="table-toggle" data-id="${t.id}"
-                aria-label="${t.name}, ${t.seats} chỗ, ${t.zone}: ${st.label}. Bấm để đổi trạng thái">
+                aria-label="${t.name}, ${t.seats} chỗ, ${t.zone}: ${st.label}${holdText ? '. ' + holdText : ''}. Bấm để đổi trạng thái">
                 <span class="table-card__icon" aria-hidden="true"><i class="fas fa-chair"></i></span>
                 <span class="table-card__name">${t.name}</span>
                 <span class="table-card__meta">${t.seats} chỗ · ${t.zone}</span>
                 ${UI.badge(st.label, st.tone)}
+                ${holdText ? html`<span class="table-card__hold">${holdText}</span>` : ''}
             </button>`;
     }
 
@@ -133,7 +139,7 @@
         t.status = next;
         UI.toast(`${t.name} → ${S.STATUS.table[next].label}`, 'info');
         UI.keepFocus(renderTables);
-        QN.app.refreshBell();
+        QN.app.changed();
     };
 
     /* ---------------- ĐẶT BÀN ---------------- */
@@ -147,34 +153,53 @@
             .sort((a, b) => a.seats - b.seats || a.id - b.id)[0] || null;
     }
 
+    /** Ngày giờ mặc định khi tạo đặt bàn: 18:00 hôm nay, hoặc mốc nửa giờ kế tiếp nếu đã muộn */
+    function defaultSlot() {
+        const today = U.todayLocal();
+        const now = new Date();
+        const minutes = now.getHours() * 60 + now.getMinutes();
+        if (minutes + 30 <= 18 * 60) return { date: today, time: '18:00' };
+        const next = Math.ceil((minutes + 30) / 30) * 30;
+        if (next > 23 * 60) return { date: U.addDays(today, 1), time: '18:00' };
+        return { date: today, time: U.pad2(Math.floor(next / 60)) + ':' + U.pad2(next % 60) };
+    }
+
     function renderReservations() {
+        const today = U.todayLocal();
         const all = S.db.reservations.slice()
             .sort((a, b) => (a.date + ' ' + a.time).localeCompare(b.date + ' ' + b.time) || a.id - b.id);
         const count = st => all.filter(r => r.status === st).length;
         UI.syncTabs('reservations', reservationFilter, {
-            all: all.length, pending: count('pending'), confirmed: count('confirmed'), cancelled: count('cancelled')
+            all: all.length, pending: count('pending'), confirmed: count('confirmed'),
+            checked_in: count('checked_in'), cancelled: count('cancelled')
         });
-        const list = reservationFilter === 'all' ? all : all.filter(r => r.status === reservationFilter);
+        const query = val('searchReservation').trim();
+        const list = all
+            .filter(r => reservationFilter === 'all' || r.status === reservationFilter)
+            .filter(r => U.matches(query, U.code('RES', r.id), r.name, r.phone, r.note));
 
         UI.renderRows('reservationTableBody', list.map(r => {
             const code = U.code('RES', r.id);
             const actions = [
+                r.status === 'confirmed' && r.date === today ? UI.iconButton({ action: 'reservation-checkin', icon: 'fa-user-check', label: 'Check-in ' + code, tone: 'success', data: { id: r.id } }) : '',
                 r.status === 'confirmed' ? UI.iconButton({ action: 'reservation-qr', icon: 'fa-qrcode', label: 'Xem mã QR ' + code, data: { id: r.id } }) : '',
                 r.status === 'pending' ? UI.iconButton({ action: 'reservation-confirm', icon: 'fa-check', label: 'Xác nhận ' + code, tone: 'success', data: { id: r.id } }) : '',
-                r.status !== 'cancelled' ? UI.iconButton({ action: 'reservation-cancel', icon: 'fa-ban', label: 'Hủy ' + code, tone: 'danger', data: { id: r.id } }) : ''
+                r.status === 'pending' || r.status === 'confirmed' ? UI.iconButton({ action: 'reservation-cancel', icon: 'fa-ban', label: 'Hủy ' + code, tone: 'danger', data: { id: r.id } }) : ''
             ].filter(Boolean);
             return html`
                 <tr>
                     <td class="t-code">${code}</td>
                     <td><span class="t-strong">${r.name}</span>${r.note ? html`<span class="t-sub">${r.note}</span>` : ''}</td>
                     <td class="nowrap">${r.phone}</td>
-                    <td class="nowrap">${U.fmtDateTime(r.date, r.time)}</td>
+                    <td class="nowrap">${r.date === today ? html`Hôm nay <span class="text-muted">${r.time}</span>` : U.fmtDateTime(r.date, r.time)}</td>
                     <td class="num">${r.guests}</td>
                     <td class="nowrap">${r.tableId ? S.tableName(r.tableId) : html`<span class="text-muted">Chưa gán</span>`}</td>
                     <td>${UI.statusBadge('reservation', r.status)}</td>
                     <td class="num"><div class="cell-actions">${actions.length ? actions : html`<span class="text-muted">—</span>`}</div></td>
                 </tr>`;
-        }), { empty: reservationFilter === 'all' ? 'Chưa có đặt bàn nào' : 'Không có đặt bàn ở trạng thái này' });
+        }), query
+            ? { empty: `Không tìm thấy đặt bàn cho “${query}”`, icon: 'fa-magnifying-glass' }
+            : { empty: reservationFilter === 'all' ? 'Chưa có đặt bàn nào' : 'Không có đặt bàn ở trạng thái này' });
     }
 
     function refreshReservationTables() {
@@ -189,6 +214,38 @@
             : 'Hiện không có bàn trống đủ chỗ — hệ thống sẽ gán bàn khi xác nhận.');
     }
 
+    /** Khách đặt bàn đã đến: đặt bàn → "Đã đến", bàn → "Đang dùng" */
+    async function checkIn(r, { offerOrder = true } = {}) {
+        if (!r || r.status !== 'confirmed') return false;
+        const today = U.todayLocal();
+        if (r.date !== today) {
+            UI.toast(`Chỉ check-in được vào đúng ngày đặt (${U.fmtDate(r.date)}).`, 'warning');
+            return false;
+        }
+        r.status = 'checked_in';
+        r.checkedInAt = U.nowDateTime();
+        const table = S.get('tables', r.tableId);
+        if (table) table.status = 'occupied';
+        UI.closeModal('qrModal');
+        QN.app.changed();
+        if (QN.app.currentPage() === 'reservations') UI.keepFocus(renderReservations);
+        UI.toast(`${U.code('RES', r.id)}: khách đã đến${table ? ' — ' + table.name + ' chuyển sang “Đang dùng”' : ''}`, 'success');
+        if (!offerOrder || !table) return true;
+        const go = await UI.confirm({
+            title: 'Gọi món cho khách vừa đến?',
+            message: `Mở trang Gọi món với ${table.name} đã được chọn sẵn.`,
+            confirmText: 'Gọi món ngay',
+            cancelText: 'Để sau',
+            tone: 'info',
+            icon: 'fa-utensils'
+        });
+        if (go) {
+            QN.orders.preselectTable(table.id);
+            QN.app.navigateTo('orders');
+        }
+        return true;
+    }
+
     QN.actions['reservation-filter'] = d => {
         reservationFilter = d.filter;
         renderReservations();
@@ -198,10 +255,11 @@
         const form = document.querySelector('#reservationModal form');
         form.reset();
         V.clear(form);
-        const today = U.todayLocal();
+        const slot = defaultSlot();
         const date = U.byId('resDate');
-        date.min = today;
-        date.value = today;
+        date.min = U.todayLocal();
+        date.value = slot.date;
+        U.byId('resTime').value = slot.time;
         refreshReservationTables();
         UI.openModal('reservationModal', { title: 'Tạo đặt bàn' });
     };
@@ -243,7 +301,7 @@
         UI.closeModal('reservationModal');
         UI.toast(`Đã tạo đặt bàn ${U.code('RES', id)} — đang chờ xác nhận`, 'success');
         renderReservations();
-        QN.app.refreshBell();
+        QN.app.changed();
     };
 
     QN.actions['reservation-confirm'] = d => {
@@ -267,13 +325,13 @@
         UI.toast(movedFrom
             ? `${movedFrom.name} không còn trống — đã xác nhận ${code} và chuyển sang ${table.name}`
             : `Đã xác nhận ${code} — ${table.name}`, 'success');
-        renderReservations();
-        QN.app.refreshBell();
+        UI.keepFocus(renderReservations);
+        QN.app.changed();
     };
 
     QN.actions['reservation-cancel'] = async d => {
         const r = S.get('reservations', d.id);
-        if (!r || r.status === 'cancelled') return;
+        if (!r || (r.status !== 'pending' && r.status !== 'confirmed')) return;
         const code = U.code('RES', r.id);
         const ok = await UI.confirm({
             title: `Hủy đặt bàn ${code}?`,
@@ -288,27 +346,34 @@
         r.status = 'cancelled';
         if (wasConfirmed && r.tableId) {
             const t = S.get('tables', r.tableId);
-            if (t && t.status === 'reserved' && !S.confirmedReservationsOfTable(t.id, r.id).length) t.status = 'available';
+            // Chỉ trả bàn khi bàn đang được giữ và không còn đặt bàn nào khác giữ nó
+            if (t && t.status === 'reserved' && !S.holdsOfTable(t.id).length) t.status = 'available';
         }
         UI.toast(`Đã hủy đặt bàn ${code}`, 'success');
-        renderReservations();
-        QN.app.refreshBell();
+        UI.keepFocus(renderReservations);
+        QN.app.changed();
     };
+
+    QN.actions['reservation-checkin'] = d => checkIn(S.get('reservations', d.id));
 
     QN.actions['reservation-qr'] = d => {
         const r = S.get('reservations', d.id);
         if (!r) return;
+        const canCheckIn = r.status === 'confirmed' && r.date === U.todayLocal();
+        const qr = C.qrSvg(r.qr);
         U.byId('qrContent').innerHTML = html`
             <div class="qr-ticket">
-                <div class="qr-ticket__box" aria-hidden="true"><i class="fas fa-qrcode"></i></div>
+                <div class="qr-ticket__box">${qr || html`<i class="fas fa-qrcode" aria-hidden="true"></i>`}</div>
                 <p class="qr-ticket__code">${r.qr}</p>
                 <p class="qr-ticket__info">${r.name} · ${r.phone}</p>
                 <p class="qr-ticket__info">${U.fmtDateTime(r.date, r.time)} · ${r.guests} người · ${S.tableName(r.tableId)}</p>
                 <p class="qr-ticket__hint">Quét mã tại quầy lễ tân để check-in.</p>
-            </div>`;
+            </div>
+            ${canCheckIn ? html`<button type="button" class="btn btn--secondary btn--block qr-checkin" data-action="reservation-checkin" data-id="${r.id}"><i class="fas fa-user-check" aria-hidden="true"></i>Check-in khách đã đến</button>` : ''}`;
         UI.openModal('qrModal', { title: 'Mã QR check-in ' + U.code('RES', r.id) });
     };
 
+    QN.reservations = { checkIn };
     QN.pages.tables = { render: renderTables };
     QN.pages.reservations = {
         render: renderReservations,

@@ -10,11 +10,11 @@
     <link rel="stylesheet" href="assets/fonts/be-vietnam-pro.css">
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/fontawesome.min.css">
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/solid.min.css">
-    <link rel="stylesheet" href="css/tokens.css?v=11">
-    <link rel="stylesheet" href="css/base.css?v=11">
-    <link rel="stylesheet" href="css/layout.css?v=11">
-    <link rel="stylesheet" href="css/components.css?v=11">
-    <link rel="stylesheet" href="css/pages.css?v=11">
+    <link rel="stylesheet" href="css/tokens.css?v=12">
+    <link rel="stylesheet" href="css/base.css?v=12">
+    <link rel="stylesheet" href="css/layout.css?v=12">
+    <link rel="stylesheet" href="css/components.css?v=12">
+    <link rel="stylesheet" href="css/pages.css?v=12">
 </head>
 <body>
 
@@ -140,9 +140,15 @@
                 </div>
             </div>
             <div class="topbar__right">
-                <button type="button" id="bellBtn" class="icon-btn icon-btn--lg icon-btn--round bell" data-action="show-attention" aria-label="Việc cần xử lý">
-                    <i class="fas fa-bell" aria-hidden="true"></i><span class="bell__count" id="bellCount" hidden>0</span>
-                </button>
+                <div class="bell-wrap">
+                    <button type="button" id="bellBtn" class="icon-btn icon-btn--lg icon-btn--round bell" data-action="toggle-attention" aria-label="Việc cần xử lý" aria-expanded="false" aria-controls="bellPanel">
+                        <i class="fas fa-bell" aria-hidden="true"></i><span class="bell__count" id="bellCount" hidden>0</span>
+                    </button>
+                    <div id="bellPanel" class="popover" role="region" aria-label="Việc cần xử lý" hidden>
+                        <p class="popover__title">Việc cần xử lý</p>
+                        <div id="bellList"></div>
+                    </div>
+                </div>
                 <span class="clock" aria-hidden="true"><span id="clockTime">--:--:--</span><span class="clock__date" id="clockDate"></span></span>
             </div>
         </header>
@@ -153,7 +159,26 @@
             <section id="page-dashboard" class="page">
                 <header class="page-header">
                     <h1 class="page-title"><span class="page-title__icon" aria-hidden="true"><i class="fas fa-table-cells-large"></i></span>Tổng quan</h1>
+                    <div class="page-actions"><button type="button" class="btn btn--ghost btn--sm" data-action="reset-data"><i class="fas fa-rotate-left" aria-hidden="true"></i>Khôi phục dữ liệu mẫu</button></div>
                 </header>
+                <div class="report-grid report-grid--wide">
+                    <div class="card today">
+                        <div class="card__header"><h2 class="card__title"><i class="fas fa-sun" aria-hidden="true"></i>Hôm nay</h2><button type="button" class="card__link" data-action="navigate" data-page="report-revenue">Báo cáo tài chính <i class="fas fa-arrow-right" aria-hidden="true"></i></button></div>
+                        <div class="card__body today__body">
+                            <div class="today__summary">
+                                <p class="today__label">Doanh thu đã thu hôm nay</p>
+                                <p class="today__value" id="todayRevenue">0đ</p>
+                                <p class="today__sub" id="todayRevenueSub"></p>
+                                <p class="delta" id="todayDelta"></p>
+                            </div>
+                            <div class="today__chart" id="todayChart"></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card__header"><h2 class="card__title"><i class="fas fa-list-check" aria-hidden="true"></i>Việc cần xử lý</h2></div>
+                        <div class="card__body card__body--flush" id="attentionList"></div>
+                    </div>
+                </div>
                 <div class="stat-grid">
                     <article class="stat stat--gold"><span class="stat__icon" aria-hidden="true"><i class="fas fa-users"></i></span><div class="stat__body"><p class="stat__label">Khách hàng</p><p class="stat__value" id="statCustomers">0</p><p class="stat__sub" id="statCustomersSub"></p></div></article>
                     <article class="stat stat--green"><span class="stat__icon" aria-hidden="true"><i class="fas fa-utensils"></i></span><div class="stat__body"><p class="stat__label">Món ăn</p><p class="stat__value" id="statFoods">0</p><p class="stat__sub" id="statFoodsSub"></p></div></article>
@@ -228,8 +253,10 @@
                             <button type="button" class="tab is-active" data-action="reservation-filter" data-filter="all" aria-pressed="true">Tất cả <span class="tab__count" data-count="all">0</span></button>
                             <button type="button" class="tab" data-action="reservation-filter" data-filter="pending" aria-pressed="false">Chờ xác nhận <span class="tab__count" data-count="pending">0</span></button>
                             <button type="button" class="tab" data-action="reservation-filter" data-filter="confirmed" aria-pressed="false">Đã xác nhận <span class="tab__count" data-count="confirmed">0</span></button>
+                            <button type="button" class="tab" data-action="reservation-filter" data-filter="checked_in" aria-pressed="false">Đã đến <span class="tab__count" data-count="checked_in">0</span></button>
                             <button type="button" class="tab" data-action="reservation-filter" data-filter="cancelled" aria-pressed="false">Đã hủy <span class="tab__count" data-count="cancelled">0</span></button>
                         </div>
+                        <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm đặt bàn</span><input type="search" id="searchReservation" placeholder="Tìm theo mã, tên, SĐT…" autocomplete="off" data-rerender="reservations"></label>
                     </div>
                     <div class="table-wrap">
                         <table class="table">
@@ -288,7 +315,8 @@
                         <div class="order-selectors" id="orderSelectors">
                             <div class="field">
                                 <label class="field__label" for="orderTableSelect">Bàn <span class="field__req" aria-hidden="true">*</span></label>
-                                <select class="input" id="orderTableSelect"></select>
+                                <select class="input" id="orderTableSelect" aria-describedby="orderTableHint"></select>
+                                <p class="field__hint field__hint--note" id="orderTableHint" aria-live="polite"></p>
                                 <p class="field__error"></p>
                             </div>
                             <div class="field">
@@ -302,7 +330,8 @@
                             </div>
                             <div class="field">
                                 <label class="field__label" for="orderVoucherSelect">Voucher</label>
-                                <select class="input" id="orderVoucherSelect"></select>
+                                <select class="input" id="orderVoucherSelect" aria-describedby="orderVoucherHint"></select>
+                                <p class="field__hint field__hint--note" id="orderVoucherHint" aria-live="polite"></p>
                                 <p class="field__error"></p>
                             </div>
                         </div>
@@ -318,9 +347,13 @@
                             <div class="cart__row"><span>Tiền món</span><span id="cartSubtotal">0đ</span></div>
                             <div class="cart__row cart__row--discount"><span>Giảm giá</span><span id="cartDiscount">0đ</span></div>
                             <div class="cart__total"><span>Tổng cộng</span><span class="cart__total-amount" id="cartTotal">0đ</span></div>
-                            <button type="button" class="btn btn--primary btn--block" data-action="order-submit"><i class="fas fa-paper-plane" aria-hidden="true"></i>Gửi đơn &amp; tạo hóa đơn</button>
+                            <button type="button" class="btn btn--primary btn--block" id="orderSubmitBtn" data-action="order-submit"><i class="fas fa-paper-plane" aria-hidden="true"></i><span id="orderSubmitLabel">Gửi đơn &amp; tạo hóa đơn</span></button>
                         </div>
                     </aside>
+                </div>
+                <div class="cart-bar is-empty" id="cartBar">
+                    <span class="cart-bar__info"><i class="fas fa-cart-shopping" aria-hidden="true"></i><strong class="cart__count" id="cartBarCount">0 món</strong><span id="cartBarTotal">0đ</span></span>
+                    <button type="button" class="btn btn--primary btn--sm" data-action="scroll-to-cart">Xem đơn <i class="fas fa-arrow-down" aria-hidden="true"></i></button>
                 </div>
             </section>
 
@@ -363,6 +396,7 @@
                             <button type="button" class="tab" data-action="invoice-filter" data-filter="paid" aria-pressed="false">Đã thanh toán <span class="tab__count" data-count="paid">0</span></button>
                             <button type="button" class="tab" data-action="invoice-filter" data-filter="pending" aria-pressed="false">Chờ thanh toán <span class="tab__count" data-count="pending">0</span></button>
                         </div>
+                        <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm hóa đơn</span><input type="search" id="searchInvoice" placeholder="Tìm theo mã HĐ, bàn, khách, nhân viên…" autocomplete="off" data-rerender="invoices"></label>
                     </div>
                     <div class="table-wrap">
                         <table class="table">
@@ -380,6 +414,10 @@
                     <div class="page-actions"><button type="button" class="btn btn--primary" data-action="crud-add" data-entity="vouchers"><i class="fas fa-plus" aria-hidden="true"></i>Thêm voucher</button></div>
                 </header>
                 <div class="card">
+                    <div class="toolbar">
+                        <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm voucher</span><input type="search" id="searchVoucher" placeholder="Tìm theo mã hoặc mô tả…" autocomplete="off" data-rerender="vouchers"></label>
+                        <span class="toolbar__meta" id="vouchersMeta"></span>
+                    </div>
                     <div class="table-wrap">
                         <table class="table">
                             <thead><tr><th>Mã</th><th>Mô tả</th><th class="num">Giảm</th><th class="num">SL còn</th><th class="num">Thao tác</th></tr></thead>
@@ -396,9 +434,13 @@
                     <div class="page-actions"><button type="button" class="btn btn--primary" data-action="crud-add" data-entity="ingredients"><i class="fas fa-plus" aria-hidden="true"></i>Thêm nguyên liệu</button></div>
                 </header>
                 <div class="card">
+                    <div class="toolbar">
+                        <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm nguyên liệu</span><input type="search" id="searchIngredient" placeholder="Tìm theo tên, ĐVT, nhà cung cấp…" autocomplete="off" data-rerender="ingredients"></label>
+                        <span class="toolbar__meta" id="ingredientsMeta"></span>
+                    </div>
                     <div class="table-wrap">
                         <table class="table">
-                            <thead><tr><th>STT</th><th>Tên nguyên liệu</th><th>ĐVT</th><th class="num">Đơn giá</th><th>Nhà cung cấp</th><th class="num">Tồn kho</th><th>Trạng thái</th><th class="num">Thao tác</th></tr></thead>
+                            <thead><tr><th>STT</th><th>Tên nguyên liệu</th><th>ĐVT</th><th class="num">Đơn giá</th><th>Nhà cung cấp</th><th class="num">Tồn kho</th><th class="num">Tối thiểu</th><th>Trạng thái</th><th class="num">Thao tác</th></tr></thead>
                             <tbody id="ingredientTableBody"></tbody>
                         </table>
                     </div>
@@ -412,6 +454,10 @@
                     <div class="page-actions"><button type="button" class="btn btn--primary" data-action="crud-add" data-entity="suppliers"><i class="fas fa-plus" aria-hidden="true"></i>Thêm nhà cung cấp</button></div>
                 </header>
                 <div class="card">
+                    <div class="toolbar">
+                        <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm nhà cung cấp</span><input type="search" id="searchSupplier" placeholder="Tìm theo tên, địa chỉ, SĐT…" autocomplete="off" data-rerender="suppliers"></label>
+                        <span class="toolbar__meta" id="suppliersMeta"></span>
+                    </div>
                     <div class="table-wrap">
                         <table class="table">
                             <thead><tr><th>STT</th><th>Tên nhà cung cấp</th><th>Địa chỉ</th><th>SĐT</th><th class="num">Thao tác</th></tr></thead>
@@ -434,6 +480,7 @@
                             <button type="button" class="tab" data-action="inventory-filter" data-filter="import" aria-pressed="false">Nhập kho <span class="tab__count" data-count="import">0</span></button>
                             <button type="button" class="tab" data-action="inventory-filter" data-filter="export" aria-pressed="false">Xuất kho <span class="tab__count" data-count="export">0</span></button>
                         </div>
+                        <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm phiếu kho</span><input type="search" id="searchReceipt" placeholder="Tìm theo mã phiếu, nguyên liệu, NCC…" autocomplete="off" data-rerender="inventory"></label>
                     </div>
                     <div class="table-wrap">
                         <table class="table">
@@ -451,6 +498,10 @@
                     <div class="page-actions"><button type="button" class="btn btn--primary" data-action="crud-add" data-entity="vehicles"><i class="fas fa-plus" aria-hidden="true"></i>Thêm xe</button></div>
                 </header>
                 <div class="card">
+                    <div class="toolbar">
+                        <label class="search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Tìm xe</span><input type="search" id="searchVehicle" placeholder="Tìm theo biển số hoặc loại xe…" autocomplete="off" data-rerender="vehicles"></label>
+                        <span class="toolbar__meta" id="vehiclesMeta"></span>
+                    </div>
                     <div class="table-wrap">
                         <table class="table">
                             <thead><tr><th>STT</th><th>Biển số</th><th>Loại xe</th><th class="num">Số chỗ</th><th>Trạng thái</th><th class="num">Thao tác</th></tr></thead>
@@ -479,7 +530,7 @@
                     <div class="card__header"><h2 class="card__title"><i class="fas fa-route" aria-hidden="true"></i>Chuyến xe</h2></div>
                     <div class="table-wrap">
                         <table class="table">
-                            <thead><tr><th>STT</th><th>Khách hàng</th><th>Biển số xe</th><th>Tài xế</th><th>Giờ xuất phát</th><th>Trạng thái</th></tr></thead>
+                            <thead><tr><th>STT</th><th>Khách hàng</th><th>Biển số xe</th><th>Tài xế</th><th>Giờ xuất phát</th><th>Trạng thái</th><th class="num">Thao tác</th></tr></thead>
                             <tbody id="tripTableBody"></tbody>
                         </table>
                     </div>
@@ -504,7 +555,7 @@
                 </div>
                 <div class="report-grid report-grid--wide">
                     <div class="card">
-                        <div class="card__header"><h2 class="card__title"><i class="fas fa-chart-column" aria-hidden="true"></i>Doanh thu theo ngày</h2><span class="card__subtitle">Hóa đơn đã thanh toán</span></div>
+                        <div class="card__header"><h2 class="card__title"><i class="fas fa-chart-column" aria-hidden="true"></i>Doanh thu theo ngày</h2><span class="card__subtitle">Theo ngày thanh toán</span></div>
                         <div class="chart" id="revenueBarChart"></div>
                     </div>
                     <div class="card">
@@ -526,7 +577,7 @@
                     <div class="card__header"><h2 class="card__title"><i class="fas fa-list" aria-hidden="true"></i>Chi tiết hóa đơn</h2><span class="card__subtitle" id="revenueTableMeta"></span></div>
                     <div class="table-wrap">
                         <table class="table">
-                            <thead><tr><th>Mã HĐ</th><th>Ngày</th><th>Bàn</th><th>Khách hàng</th><th class="num">Số món</th><th class="num">Tổng tiền</th><th>Thanh toán</th><th>Trạng thái</th></tr></thead>
+                            <thead><tr><th>Mã HĐ</th><th>Ngày lập</th><th>Ngày TT</th><th>Bàn</th><th>Khách hàng</th><th class="num">Số món</th><th class="num">Tổng tiền</th><th>Thanh toán</th><th>Trạng thái</th></tr></thead>
                             <tbody id="revenueTableBody"></tbody>
                         </table>
                     </div>
@@ -583,7 +634,7 @@
                 </div>
                 <div class="report-grid">
                     <div class="card">
-                        <div class="card__header"><h2 class="card__title"><i class="fas fa-chart-bar" aria-hidden="true"></i>Tồn kho theo nguyên liệu</h2></div>
+                        <div class="card__header"><h2 class="card__title"><i class="fas fa-gauge-high" aria-hidden="true"></i>Tồn kho so với định mức</h2><span class="card__subtitle">Vạch giữa = định mức tối thiểu</span></div>
                         <div class="chart" id="stockBarChart"></div>
                     </div>
                     <div class="card">
@@ -604,7 +655,7 @@
                     <div class="card__header"><h2 class="card__title"><i class="fas fa-magnifying-glass-chart" aria-hidden="true"></i>Chi tiết tồn kho</h2><span class="card__subtitle">Tồn kho = tổng nhập − tổng xuất</span></div>
                     <div class="table-wrap">
                         <table class="table">
-                            <thead><tr><th>STT</th><th>Nguyên liệu</th><th>ĐVT</th><th class="num">Nhập vào</th><th class="num">Xuất ra</th><th class="num">Tồn kho</th><th class="num">Đơn giá</th><th class="num">Giá trị</th><th>Trạng thái</th></tr></thead>
+                            <thead><tr><th>STT</th><th>Nguyên liệu</th><th>ĐVT</th><th class="num">Nhập vào</th><th class="num">Xuất ra</th><th class="num">Tồn kho</th><th class="num">Tối thiểu</th><th class="num">Đơn giá</th><th class="num">Giá trị</th><th>Trạng thái</th></tr></thead>
                             <tbody id="stockTableBody"></tbody>
                         </table>
                     </div>
@@ -739,7 +790,8 @@
                         <select class="input" id="ingUnit"><option>kg</option><option>lít</option><option>thùng</option><option>hộp</option><option>chai</option><option>gói</option><option>cái</option></select>
                         <p class="field__error"></p>
                     </div>
-                    <div class="field field--full"><label class="field__label" for="ingSupplier">Nhà cung cấp</label><select class="input" id="ingSupplier"></select><p class="field__hint">Tồn kho chỉ thay đổi qua phiếu nhập / xuất kho.</p></div>
+                    <div class="field"><label class="field__label" for="ingMinStock">Định mức tồn tối thiểu <span class="field__req" aria-hidden="true">*</span></label><input class="input" type="number" id="ingMinStock" min="0" step="1" inputmode="numeric" value="5"><p class="field__hint">Tồn ≤ định mức sẽ báo “Sắp hết”.</p><p class="field__error"></p></div>
+                    <div class="field"><label class="field__label" for="ingSupplier">Nhà cung cấp</label><select class="input" id="ingSupplier"></select><p class="field__hint">Tồn kho chỉ thay đổi qua phiếu nhập / xuất kho.</p></div>
                 </div>
             </div>
             <footer class="modal__footer"><button type="button" class="btn btn--ghost" data-close>Hủy</button><button type="submit" class="btn btn--secondary"><i class="fas fa-floppy-disk" aria-hidden="true"></i>Lưu</button></footer>
@@ -796,7 +848,7 @@
                     <div class="field"><label class="field__label" for="vehPlate">Biển số <span class="field__req" aria-hidden="true">*</span></label><input class="input input--upper" type="text" id="vehPlate" maxlength="15" placeholder="30A-12345" autocomplete="off"><p class="field__error"></p></div>
                     <div class="field"><label class="field__label" for="vehType">Loại xe</label><input class="input" type="text" id="vehType" maxlength="40" placeholder="Xe 4 chỗ" autocomplete="off"><p class="field__error"></p></div>
                     <div class="field"><label class="field__label" for="vehSeats">Số chỗ <span class="field__req" aria-hidden="true">*</span></label><input class="input" type="number" id="vehSeats" min="1" max="50" step="1" inputmode="numeric" placeholder="4"><p class="field__error"></p></div>
-                    <div class="field"><label class="field__label" for="vehStatus">Trạng thái</label><select class="input" id="vehStatus"><option value="available">Sẵn sàng</option><option value="in_use">Đang dùng</option><option value="maintenance">Bảo trì</option></select></div>
+                    <div class="field"><label class="field__label" for="vehStatus">Trạng thái</label><select class="input" id="vehStatus"><option value="available">Sẵn sàng</option><option value="in_use">Đang dùng</option><option value="maintenance">Bảo trì</option></select><p class="field__error"></p></div>
                 </div>
             </div>
             <footer class="modal__footer"><button type="button" class="btn btn--ghost" data-close>Hủy</button><button type="submit" class="btn btn--secondary"><i class="fas fa-floppy-disk" aria-hidden="true"></i>Lưu</button></footer>
@@ -835,7 +887,7 @@
             <button type="button" class="icon-btn icon-btn--round" data-close aria-label="Đóng"><i class="fas fa-xmark" aria-hidden="true"></i></button>
         </header>
         <div class="modal__body" id="invoiceDetailContent"></div>
-        <footer class="modal__footer"><button type="button" class="btn btn--ghost" data-close>Đóng</button></footer>
+        <footer class="modal__footer"><button type="button" class="btn btn--ghost" data-close>Đóng</button><button type="button" class="btn btn--secondary" id="invoicePrintBtn" data-action="invoice-print"><i class="fas fa-print" aria-hidden="true"></i>In hóa đơn</button></footer>
     </div>
 </div>
 
@@ -904,21 +956,22 @@
     </div>
 </div>
 
-<script src="js/core/utils.js?v=11"></script>
-<script src="js/core/data.js?v=11"></script>
-<script src="js/core/store.js?v=11"></script>
-<script src="js/core/ui.js?v=11"></script>
-<script src="js/core/validate.js?v=11"></script>
-<script src="js/core/charts.js?v=11"></script>
-<script src="js/core/crud.js?v=11"></script>
-<script src="js/pages/tong-quan.js?v=11"></script>
-<script src="js/pages/khach-hang.js?v=11"></script>
-<script src="js/pages/ban-hang.js?v=11"></script>
-<script src="js/pages/goi-mon.js?v=11"></script>
-<script src="js/pages/nha-bep.js?v=11"></script>
-<script src="js/pages/kho.js?v=11"></script>
-<script src="js/pages/xe-dua-don.js?v=11"></script>
-<script src="js/pages/bao-cao.js?v=11"></script>
-<script src="js/app.js?v=11"></script>
+<script src="assets/vendor/qrcode-generator/qrcode.js"></script>
+<script src="js/core/utils.js?v=12"></script>
+<script src="js/core/data.js?v=12"></script>
+<script src="js/core/store.js?v=12"></script>
+<script src="js/core/ui.js?v=12"></script>
+<script src="js/core/validate.js?v=12"></script>
+<script src="js/core/charts.js?v=12"></script>
+<script src="js/core/crud.js?v=12"></script>
+<script src="js/pages/tong-quan.js?v=12"></script>
+<script src="js/pages/khach-hang.js?v=12"></script>
+<script src="js/pages/ban-hang.js?v=12"></script>
+<script src="js/pages/goi-mon.js?v=12"></script>
+<script src="js/pages/nha-bep.js?v=12"></script>
+<script src="js/pages/kho.js?v=12"></script>
+<script src="js/pages/xe-dua-don.js?v=12"></script>
+<script src="js/pages/bao-cao.js?v=12"></script>
+<script src="js/app.js?v=12"></script>
 </body>
 </html>

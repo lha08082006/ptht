@@ -10,18 +10,20 @@
 
     const CREDENTIALS = { username: 'admin', password: '123456' };
     const REMEMBER_KEY = 'qntd.rememberedUser';
+    const SESSION_KEY = 'qntd.session';   // phiên đăng nhập của tab (F5 không bị đăng xuất)
+    const PAGE_KEY = 'qntd.page';         // trang đang xem (F5 mở lại đúng trang)
     const mobileQuery = window.matchMedia('(max-width: 991.98px)');
     let currentPage = 'dashboard';
 
-    /* ---------- localStorage an toàn (có thể bị chặn ở chế độ ẩn danh) ---------- */
-    function readStorage(key) {
-        try { return localStorage.getItem(key); } catch (e) { return null; }
+    /* ---------- Bộ nhớ trình duyệt an toàn (có thể bị chặn ở chế độ ẩn danh) ---------- */
+    function storageGet(store, key) {
+        try { return window[store].getItem(key); } catch (e) { return null; }
     }
 
-    function writeStorage(key, value) {
+    function storageSet(store, key, value) {
         try {
-            if (value == null) localStorage.removeItem(key);
-            else localStorage.setItem(key, value);
+            if (value == null) window[store].removeItem(key);
+            else window[store].setItem(key, value);
         } catch (e) { /* bỏ qua */ }
     }
 
@@ -37,7 +39,7 @@
     }
 
     function prepareLoginForm() {
-        const remembered = readStorage(REMEMBER_KEY);
+        const remembered = storageGet('localStorage', REMEMBER_KEY);
         U.byId('loginUsername').value = remembered || '';
         U.byId('loginPassword').value = '';
         U.byId('rememberMe').checked = !!remembered;
@@ -45,10 +47,13 @@
         return remembered;
     }
 
-    function setupLogin() {
-        const remembered = prepareLoginForm();
-        U.byId(remembered ? 'loginPassword' : 'loginUsername').focus();
+    function enterApp(page) {
+        U.byId('loginPage').hidden = true;
+        U.byId('appShell').hidden = false;
+        navigateTo(page || 'dashboard');
+    }
 
+    function setupLogin() {
         U.byId('loginForm').addEventListener('submit', e => {
             e.preventDefault();
             const username = U.byId('loginUsername').value.trim();
@@ -61,20 +66,25 @@
                 showLoginError('Sai tên đăng nhập hoặc mật khẩu.', 'loginPassword');
                 return;
             }
-            writeStorage(REMEMBER_KEY, U.byId('rememberMe').checked ? username : null);
+            storageSet('localStorage', REMEMBER_KEY, U.byId('rememberMe').checked ? username : null);
+            storageSet('sessionStorage', SESSION_KEY, username);
             U.byId('loginError').hidden = true;
             U.byId('loginPassword').value = '';
-            U.byId('loginPage').hidden = true;
-            U.byId('appShell').hidden = false;
-            navigateTo('dashboard');
-            UI.toast('Đăng nhập thành công. Xin chào Admin!', 'success');
+            enterApp('dashboard');
+            UI.toast(S.restoredFromStorage
+                ? 'Đăng nhập thành công. Dữ liệu lần trước đã được khôi phục.'
+                : 'Đăng nhập thành công. Xin chào Admin!', 'success');
         });
     }
 
     QN.actions.logout = () => {
         UI.closeAllModals();
+        closeAttention();
         QN.orders.clearCart();
         closeNav();
+        S.flush();
+        storageSet('sessionStorage', SESSION_KEY, null);
+        storageSet('sessionStorage', PAGE_KEY, null);
         U.byId('appShell').hidden = true;
         U.byId('loginPage').hidden = false;
         const remembered = prepareLoginForm();
@@ -96,6 +106,7 @@
     function navigateTo(page) {
         if (!QN.pages[page] || !U.byId('page-' + page)) page = 'dashboard';
         currentPage = page;
+        storageSet('sessionStorage', PAGE_KEY, page);
 
         document.querySelectorAll('.page').forEach(p => p.classList.toggle('is-active', p.id === 'page-' + page));
 
@@ -123,6 +134,7 @@
         if (group) setGroupCollapsed(group, false);
 
         closeNav();
+        closeAttention();
         window.scrollTo(0, 0);
         QN.pages[page].render();
         refreshBell();
@@ -166,11 +178,7 @@
     if (mobileQuery.addEventListener) mobileQuery.addEventListener('change', closeNav);
     else if (mobileQuery.addListener) mobileQuery.addListener(closeNav);
 
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && !e.defaultPrevented) closeNav();
-    });
-
-    /* ---------- CHUÔNG: số việc cần xử lý (lấy từ dữ liệu thật) ---------- */
+    /* ---------- CHUÔNG: số việc cần xử lý + bảng liệt kê ---------- */
     function refreshBell() {
         const a = S.attention();
         const count = U.byId('bellCount');
@@ -178,24 +186,54 @@
         count.hidden = a.total === 0;
         const label = a.total
             ? `Việc cần xử lý: ${a.kitchenNew} đơn bếp mới, ${a.reservationsPending} đặt bàn chờ xác nhận, ${a.lowStock} nguyên liệu sắp hết`
-            : 'Không có việc cần xử lý';
+            : 'Việc cần xử lý: không có việc gấp';
         const bell = U.byId('bellBtn');
         bell.setAttribute('aria-label', label);
         bell.title = label;
+        if (!U.byId('bellPanel').hidden) U.byId('bellList').innerHTML = QN.pages.dashboard.attentionList(S.attentionItems());
     }
 
-    QN.actions['show-attention'] = () => {
-        const a = S.attention();
-        if (!a.total) {
-            UI.toast('Không có việc nào cần xử lý.', 'success');
+    function closeAttention() {
+        const panel = U.byId('bellPanel');
+        if (panel.hidden) return;
+        panel.hidden = true;
+        U.byId('bellBtn').setAttribute('aria-expanded', 'false');
+    }
+
+    QN.actions['toggle-attention'] = () => {
+        const panel = U.byId('bellPanel');
+        if (!panel.hidden) {
+            closeAttention();
             return;
         }
-        const parts = [];
-        if (a.kitchenNew) parts.push(`${a.kitchenNew} đơn bếp mới`);
-        if (a.reservationsPending) parts.push(`${a.reservationsPending} đặt bàn chờ xác nhận`);
-        if (a.lowStock) parts.push(`${a.lowStock} nguyên liệu sắp hết`);
-        UI.toast('Cần xử lý: ' + parts.join(' · '), 'info');
+        U.byId('bellList').innerHTML = QN.pages.dashboard.attentionList(S.attentionItems());
+        panel.hidden = false;
+        U.byId('bellBtn').setAttribute('aria-expanded', 'true');
+        const first = panel.querySelector('button');
+        if (first) first.focus();
     };
+
+    // Bấm ra ngoài bảng thì đóng
+    document.addEventListener('click', e => {
+        if (U.byId('bellPanel').hidden) return;
+        if (!e.target.closest('.bell-wrap')) closeAttention();
+    });
+
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape' || e.defaultPrevented) return;
+        if (!U.byId('bellPanel').hidden) {
+            closeAttention();
+            U.byId('bellBtn').focus();
+            return;
+        }
+        closeNav();
+    });
+
+    /** Gọi sau mỗi thay đổi dữ liệu: lưu vào trình duyệt + cập nhật chuông */
+    function changed() {
+        S.save();
+        refreshBell();
+    }
 
     /* ---------- ĐỒNG HỒ & HIỆU ỨNG ĐĂNG NHẬP ---------- */
     function tick() {
@@ -263,14 +301,22 @@
         tick();
         setInterval(tick, 1000);
         setupLogin();
+        // Còn phiên đăng nhập trong tab này (ví dụ vừa bấm F5) → vào thẳng trang đang xem dở
+        if (storageGet('sessionStorage', SESSION_KEY)) {
+            enterApp(storageGet('sessionStorage', PAGE_KEY));
+        } else {
+            const remembered = prepareLoginForm();
+            U.byId(remembered ? 'loginPassword' : 'loginUsername').focus();
+        }
     });
 
     QN.app = {
         navigateTo,
         refreshBell,
+        changed,
         rerender() {
             QN.pages[currentPage].render();
-            refreshBell();
+            changed();
         },
         currentPage: () => currentPage
     };
