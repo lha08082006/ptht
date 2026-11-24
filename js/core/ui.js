@@ -1,0 +1,314 @@
+/* =========================================================
+   GIAO DIỆN DÙNG CHUNG: toast, modal, hộp xác nhận, badge, bảng
+   ========================================================= */
+(function (QN) {
+    'use strict';
+    const U = QN.utils;
+    const { html } = U;
+
+    /* ---------- TOAST ---------- */
+    const TOAST_ICONS = {
+        success: 'fa-circle-check',
+        error: 'fa-circle-xmark',
+        warning: 'fa-triangle-exclamation',
+        info: 'fa-circle-info'
+    };
+
+    function toast(message, type = 'info') {
+        const stack = U.byId('toastStack');
+        if (!stack) return;
+        while (stack.children.length >= 4) stack.firstElementChild.remove();
+        const el = document.createElement('div');
+        el.className = 'toast toast--' + type;
+        el.innerHTML = html`<i class="fas ${TOAST_ICONS[type] || TOAST_ICONS.info}" aria-hidden="true"></i><span></span>`;
+        el.querySelector('span').textContent = message;
+        stack.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('is-visible'));
+        setTimeout(() => {
+            el.classList.remove('is-visible');
+            setTimeout(() => el.remove(), 250);
+        }, type === 'error' || type === 'warning' ? 4500 : 3200);
+    }
+
+    /* ---------- MODAL ---------- */
+    const openStack = [];
+    const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const FIRST_FIELD = ['input:not([disabled]):not([readonly]):not([type="hidden"])', 'select:not([disabled])', 'textarea:not([disabled])', 'button:not([disabled])']
+        .map(sel => '.modal__body ' + sel).join(', ');
+
+    function openModal(id, options = {}) {
+        const modal = U.byId(id);
+        if (!modal) return null;
+        if (options.title) {
+            const title = modal.querySelector('[data-modal-title]');
+            if (title) title.textContent = options.title;
+        }
+        if (!modal.classList.contains('is-open')) {
+            modal._returnFocus = document.activeElement;
+            modal.classList.add('is-open');
+            openStack.push(modal);
+        }
+        modal._onClose = options.onClose || null;
+        document.body.classList.add('has-modal');
+        // Focus ngay (không chờ khung hình sau) để không giành focus khi người dùng đã bắt đầu gõ
+        if (!modal.contains(document.activeElement)) {
+            const target = (options.focus && modal.querySelector(options.focus)) ||
+                modal.querySelector(FIRST_FIELD) ||
+                modal.querySelector('.modal__dialog');
+            if (target) target.focus();
+        }
+        return modal;
+    }
+
+    function closeModal(idOrEl) {
+        const modal = typeof idOrEl === 'string' ? U.byId(idOrEl) : idOrEl;
+        if (!modal || !modal.classList.contains('is-open')) return;
+        modal.classList.remove('is-open');
+        const index = openStack.indexOf(modal);
+        if (index >= 0) openStack.splice(index, 1);
+        if (!openStack.length) document.body.classList.remove('has-modal');
+        const back = modal._returnFocus;
+        if (back && document.contains(back) && typeof back.focus === 'function') back.focus();
+        const onClose = modal._onClose;
+        modal._onClose = null;
+        if (onClose) onClose();
+    }
+
+    function closeAllModals() {
+        openStack.slice().forEach(closeModal);
+    }
+
+    function topModal() {
+        return openStack[openStack.length - 1] || null;
+    }
+
+    // Đóng bằng nút [data-close] hoặc bấm ra vùng tối bên ngoài
+    let pointerDownOnBackdrop = false;
+    document.addEventListener('mousedown', e => {
+        pointerDownOnBackdrop = e.target.classList && e.target.classList.contains('modal');
+    });
+    document.addEventListener('click', e => {
+        const closer = e.target.closest('[data-close]');
+        if (closer) {
+            const modal = closer.closest('.modal');
+            if (modal) closeModal(modal);
+            return;
+        }
+        if (pointerDownOnBackdrop && e.target.classList && e.target.classList.contains('modal')) closeModal(e.target);
+        pointerDownOnBackdrop = false;
+    });
+
+    // Esc để đóng, Tab không thoát ra ngoài modal
+    document.addEventListener('keydown', e => {
+        const modal = topModal();
+        if (!modal) return;
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            closeModal(modal);
+            return;
+        }
+        if (e.key !== 'Tab') return;
+        const items = [...modal.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null);
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        } else if (!modal.contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+        }
+    });
+
+    /* ---------- HỘP XÁC NHẬN (thay confirm()) ----------
+       Trả về true (bấm nút đồng ý), false (bấm nút hủy).
+       Đóng bằng Esc / bấm ra ngoài trả về `dismissValue` (mặc định false). */
+    function confirmDialog({ title = 'Xác nhận', message = '', confirmText = 'Đồng ý', cancelText = 'Hủy', tone = 'danger', icon, dismissValue = false } = {}) {
+        return new Promise(resolve => {
+            const ok = U.byId('confirmOk');
+            const cancel = U.byId('confirmCancel');
+            const iconBox = U.byId('confirmIcon');
+            U.byId('confirmTitle').textContent = title;
+            U.byId('confirmMessage').textContent = message;
+            cancel.textContent = cancelText;
+            ok.textContent = confirmText;
+            ok.className = 'btn ' + (tone === 'danger' ? 'btn--danger' : 'btn--secondary');
+            iconBox.className = 'confirm__icon' + (tone === 'danger' ? '' : ' confirm__icon--info');
+            iconBox.innerHTML = html`<i class="fas ${icon || (tone === 'danger' ? 'fa-trash' : 'fa-circle-question')}"></i>`;
+            let answer = dismissValue;
+            ok.onclick = () => {
+                answer = true;
+                closeModal('confirmModal');
+            };
+            cancel.onclick = () => { answer = false; }; // sau đó [data-close] tự đóng hộp
+            openModal('confirmModal', { focus: '#confirmCancel', onClose: () => resolve(answer) });
+        });
+    }
+
+    /* ---------- MẢNH HTML DÙNG CHUNG ---------- */
+    function badge(label, tone = 'neutral') {
+        return html`<span class="badge badge--${tone}"><span class="badge__dot" aria-hidden="true"></span>${label}</span>`;
+    }
+
+    function statusBadge(group, key) {
+        const s = QN.store.STATUS[group] && QN.store.STATUS[group][key];
+        return s ? badge(s.label, s.tone) : badge(key || '—', 'neutral');
+    }
+
+    /** Nút chỉ có icon — luôn kèm aria-label và tooltip */
+    function iconButton({ action, icon, label, tone = 'neutral', data = {} }) {
+        const attrs = Object.keys(data).map(key => html` data-${key}="${data[key]}"`);
+        return html`<button type="button" class="icon-btn icon-btn--${tone}" data-action="${action}"${attrs} aria-label="${label}" title="${label}"><i class="fas ${icon}" aria-hidden="true"></i></button>`;
+    }
+
+    function emptyState(text, icon = 'fa-inbox') {
+        return html`<div class="empty"><i class="fas ${icon}" aria-hidden="true"></i><p>${text}</p></div>`;
+    }
+
+    /* Bảng tích lũy theo thời gian (hóa đơn, phiếu kho…) chỉ hiện 50 dòng đầu + nút "Xem thêm",
+       để trang không dài hàng chục nghìn pixel khi dữ liệu đã lưu nhiều tháng. */
+    const PAGE_SIZE = 50;
+    const pageLimits = {};
+
+    /** Đổ dòng vào tbody; bảng rỗng thì hiện thông báo thay vì để trắng */
+    function renderRows(tbodyOrId, rows, { empty = 'Chưa có dữ liệu', icon = 'fa-inbox', paged = true } = {}) {
+        const tbody = typeof tbodyOrId === 'string' ? U.byId(tbodyOrId) : tbodyOrId;
+        if (!tbody) return;
+        const cols = tbody.closest('table').querySelectorAll('thead th').length || 1;
+        if (!rows.length) {
+            tbody.innerHTML = html`<tr class="table__empty"><td colspan="${cols}"><i class="fas ${icon}" aria-hidden="true"></i>${empty}</td></tr>`;
+            return;
+        }
+        const limit = paged ? (pageLimits[tbody.id] || PAGE_SIZE) : Infinity;
+        if (rows.length <= limit) {
+            tbody.innerHTML = rows.join('');
+            return;
+        }
+        const rest = rows.length - limit;
+        tbody.innerHTML = rows.slice(0, limit).join('') + html`
+            <tr class="table__more"><td colspan="${cols}"><div class="table__more-inner">
+                <button type="button" class="btn btn--ghost btn--sm" data-action="table-more" data-target="${tbody.id}"><i class="fas fa-angles-down" aria-hidden="true"></i>Xem thêm ${Math.min(rest, PAGE_SIZE)} dòng</button>
+                <span class="table__more-note">Đang hiện ${U.fmtNumber(limit)} / ${U.fmtNumber(rows.length)} dòng</span>
+            </div></td></tr>`;
+    }
+
+    /** Về lại 50 dòng đầu (gọi khi chuyển trang) */
+    function resetPaging() {
+        Object.keys(pageLimits).forEach(key => { delete pageLimits[key]; });
+    }
+
+    QN.actions['table-more'] = d => {
+        pageLimits[d.target] = (pageLimits[d.target] || PAGE_SIZE) + PAGE_SIZE;
+        const page = QN.pages[QN.app.currentPage()];
+        if (page) keepFocus(() => page.render());
+    };
+
+    /** Số liệu dài (453.480.700đ) tự thu nhỏ chữ cho vừa thẻ thay vì rớt "đ" xuống dòng */
+    function fitText(el, min = 15) {
+        el.style.fontSize = '';
+        const available = el.clientWidth;
+        if (!available) return;
+        // Đo bằng Range (có phần lẻ pixel): scrollWidth làm tròn nên bỏ sót tràn dưới 1px → vẫn bị cắt "…"
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        let size = parseFloat(getComputedStyle(el).fontSize);
+        while (range.getBoundingClientRect().width > available - 0.5 && size > min) {
+            size -= 0.5;
+            el.style.fontSize = size + 'px';
+        }
+    }
+
+    const refitAll = () => document.querySelectorAll('.page.is-active .stat__value--fit').forEach(el => fitText(el));
+    let fitTimer = null;
+    window.addEventListener('resize', () => {
+        clearTimeout(fitTimer);
+        fitTimer = setTimeout(refitAll, 150);
+    });
+    // Font chữ tải xong sau lần vẽ đầu (chữ rộng hơn font dự phòng) → đo lại
+    if (document.fonts) {
+        document.fonts.ready.then(refitAll);
+        if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', refitAll);
+    }
+
+    /** Đổ option vào select, giữ lựa chọn cũ nếu còn hợp lệ */
+    function fillSelect(selectOrId, options, { placeholder, value } = {}) {
+        const select = typeof selectOrId === 'string' ? U.byId(selectOrId) : selectOrId;
+        if (!select) return;
+        const keep = value !== undefined ? String(value) : select.value;
+        const parts = [];
+        if (placeholder !== undefined) parts.push(html`<option value="">${placeholder}</option>`);
+        options.forEach(o => parts.push(html`<option value="${o.value}"${o.disabled ? U.raw(' disabled') : ''}>${o.label}</option>`));
+        select.innerHTML = parts.join('');
+        if ([...select.options].some(o => o.value === keep && !o.disabled)) select.value = keep;
+    }
+
+    function setText(id, text) {
+        const el = U.byId(id);
+        if (!el) return;
+        el.textContent = text;
+        if (el.classList.contains('stat__value--fit')) fitText(el);
+    }
+
+    /**
+     * Vẽ lại một vùng mà không làm mất vị trí focus của bàn phím:
+     * nếu đang focus vào một nút có data-action/data-id thì focus lại nút tương ứng sau khi vẽ.
+     */
+    function keepFocus(fn) {
+        const active = document.activeElement;
+        const action = active && active.dataset ? active.dataset.action : null;
+        const id = active && active.dataset ? active.dataset.id : null;
+        fn();
+        if (!action) return;
+        const selector = '[data-action="' + action + '"]' + (id != null ? '[data-id="' + id + '"]' : '');
+        const again = document.querySelector(selector);
+        if (again && again !== active) again.focus();
+        else if (!again && !document.contains(active)) focusFallback();
+    }
+
+    /** Khi nút đang focus biến mất (dòng bị xóa / đổi trạng thái): đưa focus về nút chính của trang */
+    function focusFallback() {
+        const target = document.querySelector('.page.is-active .page-actions .btn, .page.is-active .page-title');
+        if (!target) return;
+        if (!target.matches('button, a, input, select, textarea')) target.setAttribute('tabindex', '-1');
+        target.focus();
+    }
+
+    /** Cập nhật nhóm tab lọc: trạng thái chọn + số đếm */
+    function syncTabs(group, active, counts = {}) {
+        const box = document.querySelector('[data-tabs="' + group + '"]');
+        if (!box) return;
+        box.querySelectorAll('.tab').forEach(tab => {
+            const on = tab.dataset.filter === active;
+            tab.classList.toggle('is-active', on);
+            tab.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        Object.keys(counts).forEach(key => {
+            const el = box.querySelector('[data-count="' + key + '"]');
+            if (el) el.textContent = counts[key];
+        });
+    }
+
+    QN.ui = {
+        toast,
+        openModal,
+        closeModal,
+        closeAllModals,
+        confirm: confirmDialog,
+        badge,
+        statusBadge,
+        iconButton,
+        emptyState,
+        renderRows,
+        resetPaging,
+        fitText,
+        fillSelect,
+        setText,
+        syncTabs,
+        keepFocus,
+        focusFallback
+    };
+})(window.QN);
