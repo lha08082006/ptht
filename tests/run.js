@@ -9,7 +9,10 @@ const { runSuite } = require('./lib');
 const SUITES = [
     ['hoi-quy', 'Hồi quy (toàn bộ chức năng)'],
     ['loi-review', '9 lỗi đã sửa'],
-    ['chuc-nang', 'Chức năng mới']
+    ['chuc-nang', 'Chức năng mới'],
+    ['dinh-muc', 'Định mức món ăn & trừ kho'],
+    ['du-lieu-lon', 'Dữ liệu lớn (90 ngày)'],
+    ['quy-trinh', 'Một vòng quy trình đầy đủ']
 ];
 
 (async () => {

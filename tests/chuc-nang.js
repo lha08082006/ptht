@@ -180,7 +180,8 @@ module.exports = async function chucNang(browser, check) {
     await q.fill('#ingMinStock', '-1');
     await submit(q, 'ingredientModal');
     check('Định mức âm → báo lỗi', (await fieldError(q, 'ingMinStock')).length > 0 && await isOpen(q, 'ingredientModal'));
-    await q.fill('#ingMinStock', String(before.stock + 5));
+    const newMin = Math.ceil(before.stock) + 5;
+    await q.fill('#ingMinStock', String(newMin));
     await submit(q, 'ingredientModal');
     const after = await state(q, () => {
         const g = QN.store.get('ingredients', 8);
@@ -195,7 +196,7 @@ module.exports = async function chucNang(browser, check) {
         const tr = [...document.querySelectorAll('#stockTableBody tr')].find(x => x.textContent.includes('Rau xà lách'));
         return { ratio: fill.getBoundingClientRect().width / fill.parentElement.getBoundingClientRect().width, min: tr.children[6].textContent.trim() };
     });
-    check('Báo cáo tồn kho dùng định mức mới (thanh dưới vạch nửa, cột Tối thiểu)', meter.ratio < 0.5 && meter.min.startsWith(String(before.stock + 5)), meter);
+    check('Báo cáo tồn kho dùng định mức mới (thanh dưới vạch nửa, cột Tối thiểu)', meter.ratio < 0.5 && meter.min.startsWith(String(newMin)), meter);
 
     /* ---------- DOANH THU THEO NGÀY THANH TOÁN ---------- */
     const r = await open();

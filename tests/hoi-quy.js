@@ -24,7 +24,7 @@ module.exports = async function hoiQuy(browser, check) {
     check('Dashboard có số liệu', (await page.textContent('#statTables')) === '20' && (await page.textContent('#statTablesSub')).includes('đang dùng'));
 
     /* ---------- DỮ LIỆU MẪU NHẤT QUÁN ---------- */
-    check('Dữ liệu mẫu: tồn = nhập − xuất', await state(page, () => QN.store.db.ingredients.every(g => g.stock === QN.store.db.receipts.filter(r => r.ingredientId === g.id).reduce((s, r) => s + (r.type === 'import' ? r.qty : -r.qty), 0))));
+    check('Dữ liệu mẫu: tồn = nhập − xuất (kể cả phiếu xuất bán theo định mức)', await state(page, () => QN.store.db.ingredients.every(g => Math.abs(g.stock - QN.store.db.receipts.filter(r => r.ingredientId === g.id).reduce((s, r) => s + (r.type === 'import' ? r.qty : -r.qty), 0)) < 1e-6)));
     check('Dữ liệu mẫu: bàn có HĐ chờ = Đang dùng', await state(page, () => QN.store.db.invoices.filter(i => i.status === 'pending').every(i => QN.store.get('tables', i.tableId).status === 'occupied')));
     check('Dữ liệu mẫu: xe đang chạy chuyến = Đang dùng', await state(page, () => QN.store.activeTrips().every(t => QN.store.get('vehicles', t.vehicleId).status === 'in_use')));
     check('Dữ liệu mẫu: HĐ chờ không ghi sẵn phương thức (L9)', await state(page, () => QN.store.db.invoices.filter(i => i.status === 'pending').every(i => i.payMethod === '')));
@@ -98,7 +98,7 @@ module.exports = async function hoiQuy(browser, check) {
     const ingDbg = await state(page, () => ({ ing: QN.store.get('ingredients', 1), open: document.getElementById('ingredientModal').classList.contains('is-open'), errs: [...document.querySelectorAll('#ingredientModal .field__error')].map(e => e.textContent).filter(Boolean), vals: ['ingName','ingPrice','ingUnit','ingSupplier'].map(i => document.getElementById(i).value) }));
     check('Lưu xong vẫn giữ NCC (L3)', ingDbg.ing.supplierId === 3 && ingDbg.ing.price === 185000, ingDbg);
     await page.click('#ingredientTableBody tr:nth-child(9) [data-action="crud-edit"]');
-    check('ĐVT "thùng" hiển thị đúng khi sửa', (await page.inputValue('#ingUnit')) === 'thùng');
+    check('ĐVT "lon" hiển thị đúng khi sửa (không bị đổi thành "kg")', (await page.inputValue('#ingUnit')) === 'lon');
     await page.selectOption('#ingUnit', 'kg');
     await submit(page, 'ingredientModal');
     check('Không đổi được ĐVT khi đã có phiếu kho', (await fieldError(page, 'ingUnit')).includes('Không đổi được'));
@@ -301,7 +301,10 @@ module.exports = async function hoiQuy(browser, check) {
     await go(page, 'report-bestseller');
     check('Báo cáo món bán chạy có xếp hạng', (await page.$$('#bestsellerTableBody tr')).length > 5);
     await go(page, 'report-stock');
-    check('Báo cáo tồn kho: Nhập − Xuất = Tồn từng dòng', await state(page, () => [...document.querySelectorAll('#stockTableBody tr')].every(tr => { const n = i => Number(tr.children[i].textContent.replace(/\D/g, '')); return n(3) - n(4) === n(5); })));
+    check('Báo cáo tồn kho: Nhập − Xuất = Tồn từng dòng', await state(page, () => [...document.querySelectorAll('#stockTableBody tr')].every(tr => {
+        const n = i => Number(tr.children[i].textContent.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, ''));
+        return Math.abs(n(3) - n(4) - n(5)) < 1e-6;
+    })));
 
     /* ---------- ĐĂNG XUẤT + GHI NHỚ ---------- */
     await page.click('#logoutBtn');

@@ -92,7 +92,7 @@ async function submit(page, modalId) {
     await page.waitForTimeout(80);
 }
 /** Số dòng dữ liệu đang hiện trong bảng (bỏ dòng "không có dữ liệu") */
-const rowCount = (page, tbodyId) => page.evaluate(id => [...document.querySelectorAll(`#${id} tr`)].filter(tr => !tr.classList.contains('table__empty')).length, tbodyId);
+const rowCount = (page, tbodyId) => page.evaluate(id => [...document.querySelectorAll(`#${id} tr`)].filter(tr => !tr.classList.contains('table__empty') && !tr.classList.contains('table__more')).length, tbodyId);
 
 /** Chụp màn hình khi có SHOTS_DIR (không thì bỏ qua) */
 async function shot(target, name, opts = {}) {

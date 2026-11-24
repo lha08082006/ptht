@@ -7,6 +7,9 @@ Bộ kiểm thử mở thẳng `../index.html` (qua `file://`, giống cách ng�
 | `hoi-quy.js` | Đăng nhập, mở đủ 18 trang, thêm / sửa / xóa và kiểm tra dữ liệu nhập ở các danh mục, gọi món → bếp → thanh toán, đặt bàn, kho, xe đưa đón, báo cáo, giao diện điện thoại |
 | `loi-review.js` | 9 lỗi tìm được khi rà soát mã — mỗi mục dựng lại đúng tình huống từng gây lỗi để chắc lỗi không quay lại |
 | `chuc-nang.js` | Lưu dữ liệu + F5, khôi phục dữ liệu mẫu, check-in, mã QR (chụp màn hình rồi giải mã), hoàn tất chuyến xe, in hóa đơn, định mức tồn, doanh thu theo ngày thanh toán, gọi thêm món, tìm kiếm, chuông, thẻ "Hôm nay", thanh giỏ hàng và nhãn biểu đồ trên điện thoại |
+| `dinh-muc.js` | Định mức món ăn: giá vốn, lãi gộp, số phần còn làm được, hộp thoại định mức, gửi bếp tự trừ kho (phiếu xuất bán), chặn gọi vượt tồn, cảnh báo chạm định mức, báo cáo lãi gộp, gom doanh thu theo tuần / tháng |
+| `du-lieu-lon.js` | Giả lập quán chạy 90 ngày (~1.000 hóa đơn, ~4.000 phiếu kho): phân trang "Xem thêm", bếp chỉ hiện đơn xong hôm nay, đặt bàn quá hạn, số liệu dài vẫn vừa thẻ, báo khi bộ nhớ trình duyệt đầy |
+| `quy-trinh.js` | Một vòng quy trình đầy đủ chỉ bằng thao tác giao diện: đặt bàn → xác nhận → mã QR → check-in → gọi món + voucher → bếp → gọi thêm → thanh toán → in → báo cáo → xe đưa đón → nhập kho → F5 |
 | `lib.js` | Hàm dùng chung (mở trang, đăng nhập, đọc lỗi dưới ô, chụp màn hình…) |
 | `run.js` | Chạy lần lượt các bộ và in tổng kết |
 
@@ -29,7 +32,7 @@ npm test
 Chạy riêng một hoặc vài bộ:
 
 ```bash
-node run.js chuc-nang loi-review
+node run.js quy-trinh dinh-muc
 ```
 
 Mỗi mục in ra một dòng `PASS` hoặc `FAIL` (kèm chi tiết khi sai), cuối cùng là tổng số mục đạt. Có mục sai thì lệnh kết thúc với mã lỗi 1.
