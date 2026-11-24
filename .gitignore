@@ -7,3 +7,6 @@ Thumbs.db
 # Editor directories
 .vscode/
 .idea/
+
+# Thư viện cài cho bộ kiểm thử (npm install trong tests/)
+node_modules/
